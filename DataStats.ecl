@@ -1,12 +1,12 @@
-IMPORT $ AS LogisticRegression;
-IMPORT LogisticRegression.Types AS Types;
-IMPORT LogisticRegression.Constants AS Constants;
+﻿IMPORT $ AS GLM;
+IMPORT GLM.Types AS Types;
+IMPORT GLM.Constants AS Constants;
+IMPORT GLM.Family;
 IMPORT ML_Core.Types AS Core_Types;
 // convenient aliases
 Data_Info := Types.Data_Info;
 Field_Desc := Types.Field_Desc;
 NumericField := Core_Types.NumericField;
-DiscreteField:= Core_Types.DiscreteField;
 // working definitions
 Flat_Field_Desc := RECORD(Types.Field_Desc)
   Core_Types.t_work_item wi;
@@ -14,36 +14,40 @@ END;
 
 /**
  * Information about the datasets.  Without details the range
- *for the x and y (independent and dependent) columns.  Note that
- *a column of all zero values cannot be distinguished from a missing
- *column.
+ * for the x and y (independent and dependent) columns.  Note that
+ * a column of all zero values cannot be distinguished from a missing
+ * column.
  * When details are requested, the cardinality, minimum, and maximum
- *values are returned.  A zero cardinality is returned when the field
- *cardinality exceeds the Constants.limit_card value.
+ * values are returned.  A zero cardinality is returned when the field
+ * cardinality exceeds the Constants.limit_card value.
  * @param indep data set of independent variables
  * @param dep data set of dependent variables
  * @param field_details Boolean directive to provide field level info
+ * @param fam A module defining the error distribution and link of the response.
  * @returns a data set of information on each work item
  */
 EXPORT DATASET(Types.Data_Info)
        DataStats(DATASET(Core_Types.NumericField) indep,
-                  DATASET(Core_Types.DiscreteField) dep,
-                  BOOLEAN field_details=FALSE) := FUNCTION
+                  DATASET(Core_Types.NumericField) dep,
+                  BOOLEAN field_details=FALSE,
+                  Family.FamilyInterface fam=Family.Gaussian) := FUNCTION
   // assemble details for independent and dependent data
   // dependent details, treat as roughly grouped by work item
   l1_dep := GROUP(dep(field_details), wi, LOCAL);
   l1_dep_srt := SORT(l1_dep, number , value);
-  l1_dep_grp := GROUP(l1_dep_srt, number);
+  l1_dep_grp := GROUP(l1_dep_srt, number, LOCAL);
   l1_dep_sgl := DEDUP(l1_dep_grp, value);
   l1_dep_top := TOPN(l1_dep_sgl, Constants.limit_card+1, value);
   // rough groups reduced, local reduction
   l1_dep_mm := TABLE(l1_dep_sgl,
                      {wi, number, min_v:=MIN(GROUP, value),
-                      max_v:=MAX(GROUP, value)},
+                      max_v:=MAX(GROUP, value),
+                      max_dec:=MAX(GROUP, ABS(value - ROUND(value)))},
                      wi, number, FEW, UNSORTED, LOCAL);
   g1_dep_mm := TABLE(l1_dep_mm,
                      {wi, number, min_value:=MIN(GROUP, min_v),
-                      max_value:=MAX(GROUP, max_v)},
+                      max_value:=MAX(GROUP, max_v),
+                      is_integer:=MAX(GROUP, max_dec) < 0.0001},
                      wi, number, FEW, UNSORTED);
   l1_dep_cr := TABLE(l1_dep_top, {wi, number, card:=COUNT(GROUP)},
                      wi, number, FEW, UNSORTED, LOCAL);
@@ -61,11 +65,13 @@ EXPORT DATASET(Types.Data_Info)
   // rough groups reduced, local reduction
   l1_ind_mm := TABLE(l1_ind_sgl,
                     {wi, number, min_v:=MIN(GROUP, value),
-                     max_v:=MAX(GROUP, value)},
+                     max_v:=MAX(GROUP, value),
+                     max_dec:=MAX(GROUP, ABS(value - ROUND(value)))},
                     wi, number, FEW, UNSORTED, LOCAL);
   g1_ind_mm := TABLE(l1_ind_mm,
                      {wi, number, min_value:=MIN(GROUP,min_v),
-                      max_value:=MAX(GROUP,max_v)},
+                      max_value:=MAX(GROUP,max_v),
+                      is_integer:=MAX(GROUP,max_dec) < 0.0001},
                      wi, number, FEW, UNSORTED);
   l1_ind_cr := TABLE(l1_ind_top, {wi, number, card:=COUNT(GROUP)},
                      wi, number, FEW, UNSORTED, LOCAL);
@@ -96,7 +102,18 @@ EXPORT DATASET(Types.Data_Info)
   END;
   d_added := DENORMALIZE(t, g1_dep(field_details), LEFT.wi=RIGHT.wi,
                           GROUP, add_stats(LEFT, ROWS(RIGHT), FALSE));
-  i_added := DENORMALIZE(d_added, g1_ind(field_details), LEFT.wi=RIGHT.wi,
+  i_added0 := DENORMALIZE(d_added, g1_ind(field_details), LEFT.wi=RIGHT.wi,
                           GROUP, add_stats(LEFT, ROWS(RIGHT), TRUE));
+
+  // Run data checks
+  distCheck0 := GLM.DataCheck(i_added0, fam);
+  i_added_distCheck := JOIN(i_added0, distCheck0, LEFT.wi = RIGHT.wi, LIMIT(1, FAIL));
+  i_added1 := ASSERT(i_added_distCheck,
+    ASSERT(valid, 'Work item ' + (varstring)wi + ' had the following problems:'),
+    ASSERT(message_text[1] = '', message_text[1]),
+    ASSERT(message_text[2] = '', message_text[2]),
+    ASSERT(message_text[3] = '', message_text[3])
+  );
+  i_added := PROJECT(i_added1, Types.Data_Info);
   RETURN i_added;
 END;

@@ -1,4 +1,4 @@
-IMPORT ML_Core.Types AS Core_Types;
+﻿IMPORT ML_Core.Types AS Core_Types;
 
 EXPORT Types := MODULE
   EXPORT AnyField     := Core_Types.AnyField;
@@ -16,6 +16,7 @@ EXPORT Types := MODULE
     UNSIGNED4 cardinality;  // 0 for too many values
     REAL8 min_value;
     REAL8 max_value;
+    BOOLEAN is_integer;
   END;
   EXPORT Data_Info := RECORD
     t_work_item wi;
@@ -28,6 +29,11 @@ EXPORT Types := MODULE
     DATASET(Field_Desc) dependent_stats;
     DATASET(Field_Desc) independent_stats;
   END;
+  EXPORT Data_Diagnostic := RECORD
+    t_work_item wi;
+    BOOLEAN valid;
+    SET OF VARSTRING message_text;
+  END;
   EXPORT NumericField_U := RECORD(NumericField)
     t_universe u;
   END;
@@ -39,12 +45,12 @@ EXPORT Types := MODULE
     t_FieldNumber orig_number;
     t_FieldNumber remap_number;
   END;
-  EXPORT Classifier_Stats := RECORD
+  EXPORT Model_Stats := RECORD
     t_FieldNumber   column;
     t_FieldReal     max_delta;
     UNSIGNED4       iterations;
-    UNSIGNED4       correct;
-    UNSIGNED4       incorrect;
+    REAL8           mse;
+    REAL8           dispersion;
   END;
   EXPORT Model_Report := RECORD
     t_work_item wi;
@@ -54,7 +60,7 @@ EXPORT Types := MODULE
     UNSIGNED4   ind_vars;
     UNSIGNED8   obs;
     UNSIGNED2   builder;
-    DATASET(Classifier_Stats) stats;
+    DATASET(Model_Stats) stats;
   END;
   EXPORT Binomial_Confusion_Summary := RECORD
     t_work_item wi;
@@ -117,15 +123,12 @@ EXPORT Types := MODULE
     t_FieldNumber dep_nom;
     DATASET(External_Coef) coef;
   END;
-  EXPORT Raw_Prediction := RECORD(AnyField)
-    REAL8 raw;
-  END;
   EXPORT Observation_Deviance := RECORD
     t_work_item wi;
     t_RecordID id;
-    t_FieldNumber classifier;
-    t_Discrete actual;
-    t_Discrete predicted;
+    t_FieldNumber model;
+    t_FieldReal actual;
+    t_FieldReal predicted;
     REAL8 mod_ll;
     REAL8 mod_dev_component;
     REAL8 mod_dev_residual;
@@ -135,16 +138,16 @@ EXPORT Types := MODULE
   END;
   EXPORT Deviance_Record := RECORD
     t_work_item wi;
-    t_FieldNumber classifier;
-    UNSIGNED8 df; // degrees of freedom
+    t_FieldNumber model;
+    REAL8 df; // degrees of freedom
     REAL8 deviance;
     REAL8 AIC;
   END;
   EXPORT AOD_Record := RECORD
     t_work_item wi;
-    t_FieldNumber classifier;
+    t_FieldNumber model;
     UNSIGNED8 residual_df;
-    UNSIGNED8 df;
+    REAL8 df;
     REAL8 residual_dev;
     REAL8 deviance;
     REAL8 p_value;

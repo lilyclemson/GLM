@@ -1,5 +1,5 @@
-IMPORT $ AS LR;
-IMPORT LR.Types;
+﻿IMPORT $ AS GLM;
+IMPORT GLM.Types;
 empty := DATASET([], Types.WorkItem_mapping);
 Ex_Model_Coef := RECORD(Types.Full_Model_Coef)
   BOOLEAN isIntercept;
@@ -32,7 +32,7 @@ EXPORT DATASET(Types.External_Model)
                   DATASET(Types.WorkItem_mapping) wi_map=empty,
                   REAL8 level=0.05) := FUNCTION
   // Extract full model
-  m := LR.ExtractBeta_full(mod_ds, level);
+  m := GLM.ExtractBeta_full(mod_ds, level);
   // prep names for explanatory variables
   used_var(STRING s) := REGEXFIND('^\\s*\\d+\\s*$',s);
   ind_map := PROJECT(expl_map(used_var(assigned_name)),cvt_map(LEFT));

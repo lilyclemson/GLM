@@ -1,5 +1,6 @@
-IMPORT $ AS LR;
-IMPORT LR.Types;
+﻿IMPORT $ AS GLM;
+IMPORT GLM.Types;
+IMPORT ML_Core.Math AS Core_Math;
 
 // aliases
 AOD := Types.AOD_Record;
@@ -18,7 +19,7 @@ EXPORT DATASET(Types.AOD_Record)
     SELF.residual_DF := dr.df;
     SELF.residual_dev := dr.deviance;
     SELF.wi := dr.wi;
-    SELF.classifier := dr.classifier;
+    SELF.model := dr.model;
     SELF := [];
   END;
   c1 := PROJECT(base, cvt(LEFT));
@@ -29,11 +30,11 @@ EXPORT DATASET(Types.AOD_Record)
     SELF.residual_dev := p.deviance;
     SELF.df := df;
     SELF.deviance := dev;
-    SELF.p_value := 1.0 - LR.Distributions.Chi2_CDF(ABS(dev), df);
+    SELF.p_value := 1.0 - Core_Math.Distributions.Chi2_CDF(ABS(dev), df);
     SELF := p;
   END;
   c2 := JOIN(proposed, base,
-            LEFT.wi=RIGHT.wi AND LEFT.classifier=RIGHT.classifier,
+            LEFT.wi=RIGHT.wi AND LEFT.model =RIGHT.model,
             cmpr(LEFT,RIGHT), SMART);
   RETURN c1 + c2;
 END;

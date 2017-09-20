@@ -8,9 +8,9 @@ IMPORT Std.BLAS.Types AS Types;
  * @param transposeB true when transpose of B is used
  * @param diagonalA true when A is the diagonal matrix
  * @param diagonalB true when B is the diagonal matrix
- * @param M number of rows in product
- * @param N number of columns in product
- * @param K number of columns/rows for the multiplier/multiplicand
+ * @param m number of rows in product
+ * @param n number of columns in product
+ * @param k number of columns/rows for the multiplier/multiplicand
  * @param alpha scalar used on A
  * @param A matrix A
  * @param B matrix B
@@ -46,10 +46,10 @@ EXPORT  Types.matrix_t
       curr_row = 0;
       curr_col++;
     }
-    if(pos_mat>=len_mat) pos_mat = pos_mat - len_mat + 1;
     rslt[i] = diag[*pos_diag] * mat[pos_mat] * alpha
             + ((beta!=0.0 && lenC>0) ? mat_c[i]*beta  : 0.0);
     curr_row++;
     pos_mat += inc_mat;
+    if(pos_mat>=len_mat) pos_mat = pos_mat - len_mat + 1;
   }
 ENDC++;

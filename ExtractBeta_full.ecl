@@ -1,12 +1,13 @@
-IMPORT $ AS LR;
-IMPORT LR.Types AS Types;
+﻿IMPORT $ AS GLM;
+IMPORT GLM.Types AS Types;
+IMPORT ML_Core.Math AS Core_Math;
 IMPORT ML_Core.Types AS Core_Types;
 // convenience aliases
-id_betas := LR.Constants.id_betas;
-id_betas_coef := LR.Constants.id_betas_coef;
-id_betas_SE := LR.Constants.id_betas_SE;
-id_base := LR.Constants.id_base;
-base_ind_vars := LR.Constants.base_ind_vars;
+id_betas := GLM.Constants.id_betas;
+id_betas_coef := GLM.Constants.id_betas_coef;
+id_betas_SE := GLM.Constants.id_betas_SE;
+id_base := GLM.Constants.id_base;
+base_ind_vars := GLM.Constants.base_ind_vars;
 t_work_item := Core_Types.t_work_item;
 Model := Core_Types.Layout_Model;
 Full_Coef := Types.Full_Model_Coef;
@@ -34,8 +35,8 @@ END;
 EXPORT DATASET(Types.Full_Model_Coef)
        ExtractBeta_full(DATASET(Core_Types.Layout_Model) mod_ds,
                         REAL8 level=0.05):=FUNCTION
-  iv := mod_ds(id=id_base AND number=LR.Constants.base_ind_vars);
-  no := mod_ds(id=id_base AND number=LR.Constants.base_obs);
+  iv := mod_ds(id=id_base AND number=GLM.Constants.base_ind_vars);
+  no := mod_ds(id=id_base AND number=GLM.Constants.base_obs);
   ivdf := JOIN(no, iv, LEFT.wi=RIGHT.wi, make_ivdf(LEFT,RIGHT), LOOKUP);
   Work pick(Core_Types.Layout_Model m, ivdf_rec d) := TRANSFORM
     first_w := id_betas + (id_betas_coef*(d.ind_vars+1));
@@ -64,10 +65,10 @@ EXPORT DATASET(Types.Full_Model_Coef)
   rolled := ROLLUP(grp_b, roll_c(LEFT, RIGHT), wi, dep_nom, ind_col,
                  UNORDERED, UNSTABLE);
   Full_Coef decorate(Work coef) := TRANSFORM
-    margin := LR.Distributions.T_PPF((1.0-level)/2, coef.df);
+    margin := Core_Math.Distributions.T_PPF((1.0-level)/2, coef.df);
     Z := coef.w / coef.SE;
     SELF.z := Z;
-    SELF.p_value := 2*(1.0 - LR.Distributions.Normal_CDF(ABS(Z)));
+    SELF.p_value := 2*(1.0 - Core_Math.Distributions.Normal_CDF(ABS(Z)));
     SELF.upper := coef.w + margin*coef.SE;
     SELF.lower := coef.w - margin*coef.SE;
     SELF := coef;

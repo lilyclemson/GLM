@@ -1,4 +1,4 @@
-IMPORT ML_Core.Types AS Core_Types;
+﻿IMPORT ML_Core.Types AS Core_Types;
 IMPORT STD;
 /**
  * Synthetic data generation module for classification.
@@ -6,7 +6,8 @@ IMPORT STD;
  */
 EXPORT GenData(UNSIGNED2 num_work_items=5, UNSIGNED2 num_columns=4,
                UNSIGNED4 num_records=1000, UNSIGNED2 num_classes=2,
-               BOOLEAN stochastic=TRUE, REAL8 confusion=2.0/num_records,
+               BOOLEAN stochastic=TRUE,
+               REAL8 confusion=MAX(2.0/num_records,0.001),
                REAL8 low_var=0.8, REAL8 high_var=1.2) := FUNCTION
   Result_Layout := RECORD
     Core_Types.t_work_item wi;
@@ -40,7 +41,7 @@ EXPORT GenData(UNSIGNED2 num_work_items=5, UNSIGNED2 num_columns=4,
   END;
   Work_Item_Spec gen_wi(UNSIGNED c):= TRANSFORM
     SELF.wi := 1 + Std.System.ThorLib.node() + (c-1)*Std.System.ThorLib.nodes();
-    SELF.num_records := num_records*IF(stochastic, draw_btw(.8,1.1), 1.0);
+    SELF.num_records := num_records*IF(stochastic, draw_btw(.9,1.1), 1.0);
     SELF.seeds := DATASET(num_columns*num_classes, gen_seed(COUNTER + NOFOLD(0)*c));
   END;
   wi_seeds := DATASET(wi_per_node, gen_wi(COUNTER), LOCAL) (wi<=num_work_items);
@@ -49,7 +50,7 @@ EXPORT GenData(UNSIGNED2 num_work_items=5, UNSIGNED2 num_columns=4,
     SELF.rid := c;
     SELF.class := RANDOM() % num_classes;
     SELF.seeds := wis.seeds;
-    SELF.confused := 1.0/(RANDOM()+1) <= confusion;
+    SELF.confused := ((REAL8)(RANDOM()))/4294967296.0 <= confusion;
   END;
   recs := NORMALIZE(wi_seeds, LEFT.num_records, gen_obsrec(LEFT, COUNTER));
   Core_Types.NumericField make_val(Value v, Core_Types.t_work_item wi,

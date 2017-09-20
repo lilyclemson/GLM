@@ -1,5 +1,5 @@
-IMPORT $ AS LR;
-IMPORT LR.Types;
+﻿IMPORT $ AS GLM;
+IMPORT GLM.Types;
 
 // aliases
 Dev_Rec := Types.Deviance_Record;
@@ -7,9 +7,9 @@ Obs_Dev := Types.Observation_Deviance;
 
 /**
  * Model Deviance.
- * @param od observation deviance record
- * @param mod model co-efficients
- * @return model deviance
+ * @param od observation deviance record.
+ * @param mod model co-efficients.
+ * @return model deviance.
  */
 EXPORT DATASET(Types.Deviance_Record)
        Model_Deviance(DATASET(Types.Observation_Deviance) od,
@@ -17,7 +17,7 @@ EXPORT DATASET(Types.Deviance_Record)
   // get model parameter counts
   p := TABLE(mod, {wi, dep_nom, parameters:=COUNT(GROUP)},
              wi, dep_nom, FEW, UNSORTED);
-  grp_od := GROUP(od, wi, classifier, ALL);
+  grp_od := GROUP(od, wi, model, ALL);
   Dev_Rec roll_d(Obs_Dev frst, DATASET(Obs_Dev) rws) := TRANSFORM
     SELF.df := COUNT(rws);
     SELF.deviance := -2 * SUM(rws, mod_ll);
@@ -30,7 +30,7 @@ EXPORT DATASET(Types.Deviance_Record)
     SELF.AIC := dr.deviance + 2 * mod.parameters;
     SELF := dr;
   END;
-  rslt := JOIN(md1, p, LEFT.wi=RIGHT.wi AND LEFT.classifier=RIGHT.dep_nom,
+  rslt := JOIN(md1, p, LEFT.wi=RIGHT.wi AND LEFT.model=RIGHT.dep_nom,
                adj_df(LEFT, RIGHT), LOOKUP);
   RETURN rslt;
 END;

@@ -1,5 +1,5 @@
-IMPORT $ AS LR;
-IMPORT LR.Types;
+﻿IMPORT $ AS GLM;
+IMPORT GLM.Types;
 
 // aliases
 Dev_Rec := Types.Deviance_Record;
@@ -13,7 +13,7 @@ Obs_Dev := Types.Observation_Deviance;
  */
 EXPORT DATASET(Types.Deviance_Record)
        Null_Deviance(DATASET(Types.Observation_Deviance) od):=FUNCTION
-  grp_od := GROUP(od, wi, classifier, ALL);
+  grp_od := GROUP(od, wi, model, ALL);
   Dev_Rec roll_d(Obs_Dev frst, DATASET(Obs_Dev) rws) := TRANSFORM
     SELF.df := COUNT(rws) - 1;
     SELF.deviance := -2 * SUM(rws, nil_ll);

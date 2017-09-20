@@ -1,20 +1,21 @@
-//*******************************************************
-num_work_items := 2;
-avg_size := 1000000;
-columns := 500;
-max_iterations := 50;
+﻿//*******************************************************
+num_work_items := 1;
+avg_size := 10000;
+columns := 10;
+max_iterations := 1;
 //*******************************************************
 //#WORKUNIT('name', 'RunBinomial');
-IMPORT $.^ AS LR;
+IMPORT $.^ AS GLM;
+IMPORT GLM.Family;
 IMPORT $ AS Perf;
 IMPORT ML_Core.Types AS Core_Types;
 NumericField := Core_Types.NumericField;
 DiscreteField := Core_Types.DiscreteField;
-lcl := LR.Constants.builder_irls_local;
-gbl := LR.Constants.builder_irls_global;
+lcl := GLM.Constants.builder_irls_local;
+gbl := GLM.Constants.builder_irls_global;
 
-obs := Perf.GenData(num_work_items, columns, avg_size, 2, TRUE) : INDEPENDENT;
-resp_data := PROJECT(obs, TRANSFORM(DiscreteField, SELF:=LEFT.resp_var));
+obs := Perf.GenData(num_work_items, columns, avg_size, 2, FALSE) : INDEPENDENT;
+resp_data := PROJECT(obs, TRANSFORM(NumericField, SELF:=LEFT.resp_var));
 ind_data := NORMALIZE(obs, LEFT.explan_vars, TRANSFORM(NumericField, SELF:=RIGHT));
 // Data stats
 ds_tab := TABLE(obs,
@@ -26,11 +27,20 @@ ds_tab := TABLE(obs,
       wi, resp_var.value, FEW, UNSORTED);
 test_data := OUTPUT(SORT(ds_tab, wi, cls), NAMED('Test_Stats'));
 // Run it
-LR_module := LR.BinomialLogisticRegression(max_iterations);
-mod := LR_module.GetModel(ind_data, resp_data);
-reports := LR.ExtractReport(mod);
-conf_det := LR_module.Report(mod, ind_data, resp_data);
-conf_rpt := LR.BinomialConfusion(conf_det);
+GLM_module := GLM.GLM(
+  ind_data,
+  resp_data,
+  Family.Binomial,
+  DATASET([], NumericField),
+  max_iterations,
+  POWER(10, -20)
+);
+mod := GLM_module.GetModel();
+reports := GLM.ExtractReport(mod);
+conf_det := GLM.Confusion(
+  PROJECT(resp_data, DiscreteField),
+  GLM.LogitPredict(GLM.ExtractBeta(mod),ind_data));
+conf_rpt := GLM.BinomialConfusion(conf_det);
 confusion_report := OUTPUT(ENTH(conf_rpt, 100), NAMED('Sample_Confusion_Report'));
 rpt_smpls := OUTPUT(ENTH(reports,100), NAMED('Sample_Reports'));
 bad_reports := reports(NOT EXISTS(stats));
@@ -43,7 +53,7 @@ f_tab := TABLE(reports,
                min_iter:=MIN(GROUP, MIN(stats, iterations)),
                max_iter:=MAX(GROUP, MAX(stats, iterations)),
                converged:=SUM(GROUP, COUNT(stats(max_delta<=0.00000001))),
-               perfect:=SUM(GROUP, COUNT(stats(incorrect=0))),
+               sum_mse:=SUM(GROUP, SUM(stats, mse)),
                local_IRLS:=SUM(GROUP,IF(builder=lcl, 1, 0)),
                global_IRLS:=SUM(GROUP,IF(builder=gbl, 1, 0))},
               FEW, UNSORTED);

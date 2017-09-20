@@ -1,25 +1,25 @@
-IMPORT $ AS LR;
-IMPORT LR.Types AS Types;
-IMPORT LR.Constants AS Constants;
+﻿IMPORT $ AS GLM;
+IMPORT GLM.Types AS Types;
+IMPORT GLM.Constants AS Constants;
 IMPORT ML_Core.Types AS Core_Types;
 
 // convenience aliases
 NumericField := Core_Types.NumericField;
 Layout_Model := Core_Types.Layout_Model;
-id_base := LR.Constants.id_base;
-id_iters := LR.Constants.id_iters;
-id_delta := LR.Constants.id_delta;
-id_betas := LR.Constants.id_betas;
-base_max_iter := LR.Constants.base_max_iter;
-base_epsilon := LR.Constants.base_epsilon;
-base_ind_vars := LR.Constants.base_ind_vars;
-base_dep_vars := LR.Constants.base_dep_vars;
-base_obs := LR.Constants.base_obs;
-base_builder := LR.Constants.base_builder;
-id_correct := LR.Constants.id_correct;
-id_incorrect := LR.Constants.id_incorrect;
+id_base := GLM.Constants.id_base;
+id_iters := GLM.Constants.id_iters;
+id_delta := GLM.Constants.id_delta;
+id_betas := GLM.Constants.id_betas;
+base_max_iter := GLM.Constants.base_max_iter;
+base_epsilon := GLM.Constants.base_epsilon;
+base_ind_vars := GLM.Constants.base_ind_vars;
+base_dep_vars := GLM.Constants.base_dep_vars;
+base_obs := GLM.Constants.base_obs;
+base_builder := GLM.Constants.base_builder;
+id_mse := GLM.Constants.id_mse;
+id_dispersion := GLM.Constants.id_dispersion;
 Model_Report := Types.Model_Report;
-Stats := Types.Classifier_Stats;
+Stats := Types.Model_Stats;
 Ex_Stats := RECORD(Stats)
   Core_Types.t_work_item wi;
 END;
@@ -49,8 +49,8 @@ EXPORT DATASET(Types.Model_Report)
     SELF.column := s_ds[1].number;
     SELF.max_delta := s_ds(id=id_delta)[1].value;
     SELF.iterations := s_ds(id=id_iters)[1].value;
-    SELF.correct := s_ds(id=id_correct)[1].value;
-    SELF.incorrect := s_ds(id=id_incorrect)[1].value;
+    SELF.mse := s_ds(id=id_mse)[1].value;
+    SELF.dispersion := s_ds(id=id_dispersion)[1].value;
   END;
   grp_stats := GROUP(SORT(stat_mod, number), wi, number);
   stats_block := ROLLUP(grp_stats, GROUP, roll_stats(ROWS(LEFT)));

@@ -1,13 +1,14 @@
-IMPORT ML_Core;
+﻿IMPORT ML_Core;
 IMPORT ML_Core.Types AS Core_Types;
+IMPORT $.^ AS GLM;
+IMPORT GLM.Constants;
+IMPORT GLM.Types;
+IMPORT GLM.Family;
+IMPORT $ AS IRLS;
 IMPORT Std;
 IMPORT Std.BLAS AS BLAS;
-IMPORT $.^ AS LR;
-IMPORT LR.Constants;
-IMPORT LR.Types;
 //Aliases for convenience
 NumericField := Core_Types.NumericField;
-DiscreteField:= Core_Types.DiscreteField;
 Layout_Model := Core_Types.Layout_Model;
 t_work_item  := Core_Types.t_work_item;
 t_RecordID   := Core_Types.t_RecordID;
@@ -24,10 +25,101 @@ trsm         := BLAS.dtrsm;
 getf2        := BLAS.dgetf2;
 axpy         := BLAS.daxpy;
 asum         := BLAS.dasum;
+Apply2Cells  := BLAS.Apply2Cells;
 make_diag    := BLAS.make_diag;
 make_vector  := BLAS.make_vector;
 extract_diag := BLAS.extract_diag;
-dimm         := LR.dimm;
+dimm         := GLM.dimm;
+Apply2CellsBinary  := GLM.Apply2CellsBinary;
+
+Part := RECORD
+  t_work_item wi;
+  dimension_t part_rows;
+  dimension_t part_cols;
+  UNSIGNED4 obs;
+  UNSIGNED4 dims;
+  UNSIGNED4 this_addr;
+  UNSIGNED4 frst_addr;
+  UNSIGNED4 parts;
+  matrix_t mat;
+END;
+Ext_Part := RECORD(Part)
+  REAL8 max_delta;
+  REAL8 part_sse;
+  REAL8 part_nsse;
+  REAL8 part_dispersion;
+  UNSIGNED2 iterations;
+END;
+Ext_Part_C := RECORD(Part)
+  REAL8 max_delta;
+  REAL8 part_mse;
+  REAL8 part_dispersion;
+  UNSIGNED2 iterations;
+END;
+t_term_type := ENUM(UNSIGNED1, OTHER=0, LHS, RHS);
+Summand := RECORD(Part)
+  t_term_type typ := t_term_type.OTHER;
+END;
+wi_info := RECORD
+  t_work_item wi;
+  t_work_item orig_wi;
+  UNSIGNED4 obs;
+  UNSIGNED4 dims;
+  UNSIGNED4 col;
+  UNSIGNED4 orig_col;
+  UNSIGNED4 dep_cols;
+  UNSIGNED4 dep_rows;
+  UNSIGNED4 ind_cols;
+  UNSIGNED4 ind_rows;
+  dimension_t parts;
+  dimension_t num_rows;
+  UNSIGNED4 frst_addr;
+END;
+Ext_NFld := RECORD(NumericField)
+  UNSIGNED4 addr;
+  UNSIGNED4 frst;
+  UNSIGNED4 parts;
+  UNSIGNED4 mat_cols;
+  UNSIGNED4 mat_rows;
+  UNSIGNED4 part_rows;
+  UNSIGNED4 part;
+  UNSIGNED4 num_rows;
+  UNSIGNED4 obs;
+  UNSIGNED4 dims;
+  UNSIGNED4 inserts;
+  BOOLEAN dropMe;
+  REAL8 weight := 1.0;
+END;
+
+Cell := {value_t v};
+value_t prototype(value_t v) := 0.0;
+matrix_t Apply2Mat(matrix_t mat, prototype f) := FUNCTION
+  cells := DATASET(mat, Cell);
+  Cell apply_f(Cell in) := TRANSFORM
+    SELF.v := f(in.v);
+  END;
+  rslt := SET(PROJECT(cells, apply_f(LEFT)), v);
+  RETURN rslt;
+END;
+Part apply_transform(Part p, prototype f) := TRANSFORM
+  SELF.mat := Apply2Mat(p.mat, f);
+  SELF := p;
+END;
+value_t prototype_bin(value_t v, value_t u) := 0.0;
+matrix_t Apply2MatBinary(matrix_t mat1, matrix_t mat2, prototype_bin f) := FUNCTION
+  cells1 := DATASET(mat1, Cell);
+  cells2 := DATASET(mat2, Cell);
+  Cell apply_f(Cell in1, Cell in2) := TRANSFORM
+    SELF.v := f(in1.v, in2.v);
+  END;
+  rslt := SET(COMBINE(cells1, cells2, apply_f(LEFT, RIGHT)), v);
+  RETURN rslt;
+END;
+Part apply_transform_bin(Part p, Part q, prototype_bin f) := TRANSFORM
+  SELF.mat := Apply2MatBinary(p.mat, q.mat, f);
+  SELF := p;
+END;
+
 //
 /**
  * Internal function to determine values for the model coefficients
@@ -36,92 +128,65 @@ dimm         := LR.dimm;
  * XtWX matrix.
  * @param independents the independent values
  * @param dependents the dependent values
+ * @param fam a module defining the error distribution and link of the response
  * @param max_iter maximum number of iterations to try
  * @param epsilon the minimum change in the Beta value estimate to continue
  * @param ridge a value to pupulate a diagonal matrix that is added to
  * a matrix help assure that the matrix is invertible.
+ * @param weights A set of observation weights (one per dependent value).
  * @return coefficient matrix plus model building statistics
  */
-EXPORT DATASET(Layout_Model)
-      GetModel_global(DATASET(NumericField) independents,
-               DATASET(DiscreteField) dependents,
-               UNSIGNED max_iter=200,
-               REAL8 epsilon=Constants.default_epsilon,
-               REAL8 ridge=Constants.default_ridge) := FUNCTION
-  Part := RECORD
-    t_work_item wi;
-    dimension_t part_rows;
-    dimension_t part_cols;
-    UNSIGNED4 obs;
-    UNSIGNED4 dims;
-    UNSIGNED4 this_addr;
-    UNSIGNED4 frst_addr;
-    UNSIGNED4 parts;
-    matrix_t mat;
-  END;
-  Ext_Part := RECORD(Part)
-    REAL8 max_delta;
-    UNSIGNED4 part_correct;
-    UNSIGNED4 part_incorrect;
-    UNSIGNED2 iterations;
-  END;
-  t_term_type := ENUM(UNSIGNED1, OTHER=0, LHS, RHS);
-  Summand := RECORD(Part)
-    t_term_type typ := t_term_type.OTHER;
-  END;
-  wi_info := RECORD
-    t_work_item wi;
-    t_work_item orig_wi;
-    UNSIGNED4 obs;
-    UNSIGNED4 dims;
-    UNSIGNED4 col;
-    UNSIGNED4 orig_col;
-    UNSIGNED4 dep_cols;
-    UNSIGNED4 dep_rows;
-    UNSIGNED4 ind_cols;
-    UNSIGNED4 ind_rows;
-    dimension_t parts;
-    dimension_t num_rows;
-    UNSIGNED4 frst_addr;
-  END;
-  Ext_NFld := RECORD(NumericField)
-    UNSIGNED4 addr;
-    UNSIGNED4 frst;
-    UNSIGNED4 parts;
-    UNSIGNED4 mat_cols;
-    UNSIGNED4 mat_rows;
-    UNSIGNED4 part_rows;
-    UNSIGNED4 part;
-    UNSIGNED4 num_rows;
-    UNSIGNED4 obs;
-    UNSIGNED4 dims;
-    UNSIGNED4 inserts;
-    BOOLEAN dropMe;
-  END;
-  //
-  Cell := {value_t v};
-  value_t Bernoulli_EV(value_t v) := 1.0/(1.0+exp(-v));
-  value_t u_i(value_t v) := Bernoulli_EV(v);
-  value_t w_i(value_t v) := u_i(v)*(1-u_i(v));
+EXPORT DATASET(Layout_Model) GetModel_global(
+  DATASET(NumericField)  independents,
+  DATASET(NumericField)  dependents,
+  Family.FamilyInterface fam,
+  UNSIGNED               max_iter = 200,
+  REAL8                  epsilon  = Constants.default_epsilon,
+  REAL8                  ridge    = Constants.default_ridge,
+  DATASET(NumericField)  weights  = DATASET([], NumericField)) := FUNCTION
+
+  // Get definition of mean and variance functions
+  REAL8 link(REAL8 v) := fam.link(v);
+  REAL8 mu(REAL8 v) := fam.mu(v);
+  REAL8 var(REAL8 v) := fam.var(v);
+  REAL8 deta(REAL8 v) := fam.deta(v);
+  REAL8 init(REAL8 v, REAL8 w = 1.0) := fam.init(v, w);
+  value_t init_uni(value_t v) := init(v);
+  value_t init_bin(value_t v, value_t w) := init(v, w);
+  value_t link_i(value_t v) := link(v);
+  value_t u_i(value_t v) := mu(v);
+  value_t w_i(value_t v) := 1.0 / var(v) / POWER(deta(v), 2);
+
+  // Define utility functions
   value_t abs_v(value_t v) := ABS(v);
-  value_t sig_v(value_t v) := IF(v>=0.5, 1, 0);
-  value_t prototype(value_t v) := v;
-  matrix_t Apply2Mat(matrix_t mat, prototype f) := FUNCTION
-    cells := DATASET(mat, Cell);
-    Cell apply_f(Cell in) := TRANSFORM
-      SELF.v := f(in.v);
-    END;
-    rslt := SET(PROJECT(cells, apply_f(LEFT)), v);
-    RETURN rslt;
-  END;
-  Part apply_transform(Part p, prototype f) := TRANSFORM
-    SELF.mat := Apply2Mat(p.mat, f);
-    SELF := p;
-  END;
+  value_t mult_ab(value_t a, value_t b) := a * b;
+  value_t mult_mat(value_t a,
+                   value_t b,
+                   dimension_t r,
+                   dimension_t c) := a * b;
+  value_t sq_cells(value_t v,
+                  dimension_t r,
+                  dimension_t c) := POWER(v, 2);
+  value_t resi_uy(value_t u,
+                  value_t y_u,
+                  dimension_t r,
+                  dimension_t c) := y_u * deta(u);
+  value_t disp_uy(value_t u,
+                  value_t res,
+                  dimension_t r,
+                  dimension_t c) := w_i(u) * POWER(res, 2);
+
+  // check for user-defined weights
+  doWeights := COUNT(weights) > 0;
+
   // X cols, need to be dense
-  ind_screened := ASSERT(independents, number>0 AND id>0,
-                         'Column left of 1 in Ind or a row 0', FAIL);
-  icols := TABLE(ind_screened, {wi, number, max_id:=MAX(GROUP, id), col:=1},
+  ind_screen := ASSERT(independents, number>0 AND id>0,
+                       'Column left of 1 in Ind or a row 0', FAIL);
+  dep_screen := ASSERT(dependents, number>0 AND id>0,
+                       'Column left of 1 in Dep or a row 0', FAIL);
+  wgt_screen := ASSERT(weights, id>0 and number>0,
+                       'Column left of 1 in Wgt or a row 0', FAIL);
+  icols := TABLE(ind_screen, {wi, number, max_id:=MAX(GROUP, id), col:=1},
                  wi, number, FEW, UNSORTED);
   ind_cols_r := {UNSIGNED4 wi, UNSIGNED4 r, UNSIGNED4 c, SET OF UNSIGNED4 cols};
   ind_cols := ROLLUP(GROUP(SORT(icols, wi, number), wi), GROUP,
@@ -134,9 +199,7 @@ EXPORT DATASET(Layout_Model)
   //                   {wi, r:=MAX(GROUP,id), c:=MAX(GROUP,number)},
   //                   wi, FEW, UNSORTED);
   // Y columns need to be dense, so re-map as necessary
-  dep_screened := ASSERT(dependents, number>0 AND id>0,
-                         'Column left of 1 in Dep or a row 0', FAIL);
-  dcols := TABLE(dep_screened, {wi, number, max_id:=MAX(GROUP, id), col:=1},
+  dcols := TABLE(dep_screen, {wi, number, max_id:=MAX(GROUP, id), col:=1},
                  wi, number, FEW, UNSORTED);
   dep_map := PROJECT(GROUP(SORT(dcols, wi, number), wi),
                      TRANSFORM(RECORDOF(dcols),
@@ -227,28 +290,18 @@ EXPORT DATASET(Layout_Model)
     SELF.dropMe := FALSE;
     SELF := nf;
   END;
-  repl_ind := JOIN(ind_screened, map_wi, LEFT.wi=RIGHT.orig_wi,
-                   mark_addr(LEFT, RIGHT, FALSE), LOOKUP, MANY);
-  dist_ind := DISTRIBUTE(repl_ind+ind_ends, addr);
-  sorted_ind := SORT(dist_ind, wi, part, number, id, dropMe, LOCAL);
-  grpd_ind := GROUP(sorted_ind, wi, part, number, LOCAL);
-  // add in missing zero entries
   Ext_NFld find_inserts(Ext_NFld prev, Ext_NFld curr, BOOLEAN isDep) := TRANSFORM
     prev_id := IF(prev.id=0, (curr.part*curr.num_rows), prev.id);
     SELF.inserts := IF(curr.id=prev_id, 0, curr.id - prev_id - 1);
     SELF.dropMe := prev.id=curr.id;
     SELF := curr;
   END;
-  mrkd_ind := ITERATE(grpd_ind, find_inserts(LEFT, RIGHT, FALSE));
   Ext_NFld insert_zeros(Ext_NFld base, UNSIGNED c) := TRANSFORM
     insertZero := c <= base.inserts;
     SELF.value := IF(insertZero, 0, base.value);
     SELF.id := base.id - base.inserts + c - 1;
     SELF := base;
   END;
-  full_ind := NORMALIZE(mrkd_ind(NOT dropMe), LEFT.inserts+1,
-                        insert_zeros(LEFT, COUNTER));
-  // roll up to partition
   Part roll_part(Ext_NFld par, DATASET(Ext_NFld) rws, BOOLEAN isDep) := TRANSFORM
     ones := make_vector(par.part_rows, 1.0);
     SELF.wi := par.wi;
@@ -261,11 +314,30 @@ EXPORT DATASET(Layout_Model)
     SELF.obs := par.obs;
     SELF.dims := par.dims;
   END;
+  // replicate independents for multiple dependents
+  repl_ind := JOIN(ind_screen, map_wi, LEFT.wi=RIGHT.orig_wi,
+                   mark_addr(LEFT, RIGHT, FALSE), LOOKUP, MANY);
+  dist_ind := DISTRIBUTE(repl_ind+ind_ends, addr);
+  sorted_ind := SORT(dist_ind, wi, part, number, id, dropMe, LOCAL);
+  grpd_ind := GROUP(sorted_ind, wi, part, number, LOCAL);
+  mrkd_ind := ITERATE(grpd_ind, find_inserts(LEFT, RIGHT, FALSE));
+  full_ind := NORMALIZE(mrkd_ind(NOT dropMe), LEFT.inserts+1,
+                        insert_zeros(LEFT, COUNTER));
   rr_ind := GROUP(full_ind, wi, part, LOCAL);
   ind_mat := ROLLUP(rr_ind, GROUP, roll_part(LEFT, ROWS(LEFT), FALSE));
+  // replicate weights for multiple dependents
+  repl_wgt := JOIN(wgt_screen, map_wi, LEFT.wi=RIGHT.orig_wi,
+                   mark_addr(LEFT, RIGHT, TRUE), LOOKUP, MANY);
+  dist_wgt := DISTRIBUTE(repl_wgt+dep_ends, addr);
+  sorted_wgt := SORT(dist_wgt, wi, part, number, id, dropMe, LOCAL);
+  grpd_wgt := GROUP(sorted_wgt, wi, part, number, LOCAL);
+  mrkd_wgt := ITERATE(grpd_wgt, find_inserts(LEFT, RIGHT, TRUE));
+  full_wgt := NORMALIZE(mrkd_wgt(NOT dropMe), LEFT.inserts+1,
+                        insert_zeros(LEFT, COUNTER));
+  rr_wgt := GROUP(full_wgt, wi, part, LOCAL);
+  wgt_mat := ROLLUP(rr_wgt, GROUP, roll_part(LEFT, ROWS(LEFT), TRUE));
   // re-map the columns of the dep matrix and partition
-  input_dep := PROJECT(dep_screened, NumericField);
-  exp_dep := JOIN(input_dep, map_wi,
+  exp_dep := JOIN(dep_screen, map_wi,
                   LEFT.wi=RIGHT.orig_wi AND LEFT.number=RIGHT.orig_col,
                   mark_addr(LEFT, RIGHT, TRUE), LOOKUP);
   dist_dep := DISTRIBUTE(exp_dep+dep_ends, addr);
@@ -285,12 +357,13 @@ EXPORT DATASET(Layout_Model)
     SELF.this_addr := inf.frst_addr + c - 1;
     SELF.frst_addr := inf.frst_addr;
     SELF.parts := inf.parts;
-    SELF.mat := make_vector(inf.dims, 0.00000001); // make non-zero
+    SELF.mat := make_vector(inf.dims, 0.0); // make non-zero
     SELF.obs := inf.obs;
     SELF.dims := inf.dims;
     SELF.max_delta := 2*epsilon;
-    SELF.part_correct := 0;
-    SELF.part_incorrect := MIN(inf.num_rows, inf.obs - inf.num_rows*(c-1));
+    SELF.part_sse := 0.0;
+    SELF.part_nsse := 0.0;
+    SELF.part_dispersion := 0.0;
     SELF.iterations := 0;
   END;
   B_1node := NORMALIZE(map_wi, LEFT.parts, initial_beta(LEFT, COUNTER));
@@ -305,18 +378,32 @@ EXPORT DATASET(Layout_Model)
   ridge_mat := PROJECT(B_init, make_ridge(LEFT));
   // iterate Beta to get convergence
   DATASET(Ext_Part) iter0(DATASET(Ext_Part) B_SE, UNSIGNED iter):=FUNCTION
+    U0 := IF(~doWeights,
+      PROJECT(dep_mat, apply_transform(LEFT, init_uni)),
+      JOIN(dep_mat, wgt_mat, LEFT.wi=RIGHT.wi AND LEFT.this_addr=RIGHT.this_addr,
+      apply_transform_bin(LEFT, RIGHT, init_bin), LOCAL)
+    );
+    XB0 := PROJECT(U0, apply_transform(LEFT, link_i));
     // Need XB ==> vector of partitions, all local
     Part XB_prod(Part x, Part b) := TRANSFORM
       SELF.mat := gemm(FALSE, FALSE, x.part_rows, 1, x.part_cols, 1.0, x.mat, b.mat);
       SELF.part_cols := 1;
       SELF := x;
     END;
-    XB := JOIN(ind_mat, B_SE,
-               LEFT.wi=RIGHT.wi AND LEFT.this_addr=RIGHT.this_addr,
-               XB_prod(LEFT, RIGHT), LOCAL);
-    // Make W and U vectors from XB product
-    W := PROJECT(XB, apply_transform(LEFT, w_i));   // Block Vector
-    U := PROJECT(XB, apply_transform(LEFT, u_i));   // Block vector
+    XB := IF(iter <> 1,
+      JOIN(ind_mat, B_SE,
+           LEFT.wi=RIGHT.wi AND LEFT.this_addr=RIGHT.this_addr,
+           XB_prod(LEFT, RIGHT), LOCAL),
+      XB0
+    );
+    U := IF(iter <> 1, PROJECT(XB, apply_transform(LEFT, u_i)), U0);
+    W_uw := PROJECT(U, apply_transform(LEFT, w_i));   // Block Vector
+    W := IF(
+      doWeights,
+      JOIN(W_uw, wgt_mat, LEFT.wi=RIGHT.wi AND LEFT.this_addr=RIGHT.this_addr,
+      apply_transform_bin(LEFT, RIGHT, mult_ab), LOCAL),
+      W_uw
+	   );
     // XtWX ==> Single partition of partial sums
     Summand XtWX_prod(Part x, Part w) := TRANSFORM
       XtW := dimm(TRUE, FALSE, FALSE, TRUE, x.dims, x.part_rows,
@@ -335,30 +422,33 @@ EXPORT DATASET(Layout_Model)
     ds_set := [PROJECT(W, Summand), PROJECT(XB, Summand),
                PROJECT(dep_mat, Summand), PROJECT(U, Summand),
                PROJECT(ind_mat, Summand)];
-    Summand XtWXB_Y_U_term(DATASET(Summand) parts) := TRANSFORM
+    Summand XtWXB_res_term(DATASET(Summand) parts) := TRANSFORM
       part_obs := parts[1].part_rows;
       dims := parts[1].dims;
       W_mat := parts[1].mat;
-      XB_mat := parts[2].mat;
       Y_mat := parts[3].mat;
       U_mat := parts[4].mat;
+      XB_mat := parts[2].mat;
       X_mat := parts[5].mat;
       Y_U := axpy(part_obs, -1.0, U_mat, 1, Y_mat, 1);
-      WXB_Y_U := dimm(FALSE, FALSE, TRUE, FALSE, part_obs, 1, part_obs,
-                       1.0, W_mat, XB_mat, 1.0, Y_U);
-      SELF.mat := gemm(TRUE, FALSE, dims, 1, part_obs, 1.0, X_mat, WXB_Y_U);
+      res := Apply2CellsBinary(part_obs, 1, U_mat, Y_U, resi_uy);
+      XB_res := axpy(part_obs, 1.0, XB_mat, 1, res, 1);
+      WXB_res := dimm(FALSE, FALSE, TRUE, FALSE, part_obs, 1, part_obs,
+                       1.0, W_mat, XB_res);
+      XtWXB_res := gemm(TRUE, FALSE, dims, 1, part_obs, 1.0, X_mat, WXB_res);
+      SELF.mat := XtWXB_res;
       SELF.part_rows := dims;
       SELF.part_cols := 1;
       SELF.dims := 1;
       SELF.typ := t_term_type.RHS;
       SELF := parts[2];
     END;
-    XtWXB_Y_U_parts := JOIN(ds_set,
+    XtWXB_res_parts := JOIN(ds_set,
                             LEFT.wi=RIGHT.wi AND LEFT.this_addr=RIGHT.this_addr,
-                            XtWXB_Y_U_term(ROWS(LEFT)),
+                            XtWXB_res_term(ROWS(LEFT)),
                             SORTED(wi, this_addr), LOCAL);
     // replicate XtWX and Xt(WXB + Y - U) partials to each node for local sum
-    replicants := NORMALIZE(XtWXB_Y_U_parts + XtWX_parts, LEFT.parts,
+    replicants := NORMALIZE(XtWXB_res_parts + XtWX_parts, MAX(CLUSTERSIZE, LEFT.parts),
                       TRANSFORM(Summand,
                                 SELF.this_addr:=LEFT.frst_addr+COUNTER-1,
                                 SELF := LEFT));
@@ -373,8 +463,8 @@ EXPORT DATASET(Layout_Model)
     XtWX_R := ROLLUP(XtWX_R_terms, sum_part(LEFT, RIGHT), wi, LOCAL);
     // Sum RHS to get Xt(WXB + Y - U) on each node
     RHS_terms := PROJECT(Term_home(typ=t_term_type.RHS), Part);
-    XtWXB_Y_U_terms := SORT(RHS_terms, wi, LOCAL);
-    XtWXB_Y_U := ROLLUP(XtWXB_Y_U_terms, sum_part(LEFT,RIGHT), wi, LOCAL);
+    XtWXB_res_terms := SORT(RHS_terms, wi, LOCAL);
+    XtWXB_res := ROLLUP(XtWXB_res_terms, sum_part(LEFT,RIGHT), wi, LOCAL);
     // Calc INV(XtWX + R) ==> single partition, calc on all nodes
     Part calc_inv(Part p) := TRANSFORM
       LU := getf2(p.dims, p.dims, p.mat);
@@ -388,7 +478,7 @@ EXPORT DATASET(Layout_Model)
       SELF := p;
     END;
     inv_XtWX_R := PROJECT(XtWX_R, calc_inv(LEFT));
-    // B1 = INV(XtWX+R) * XtWXB_Y_U ==> single partition, each node
+    // B1 = INV(XtWX+R) * XtWXB_res ==> single partition, each node
     // SE = diag of INV(XtWX+R)
     Part calc_beta_se(Part inv, Part rhs) := TRANSFORM
       betas := gemm(FALSE, FALSE, inv.dims, 1, inv.dims, 1.0, inv.mat, rhs.mat);
@@ -398,7 +488,7 @@ EXPORT DATASET(Layout_Model)
       SELF.part_cols := 2;
       SELF := inv;
     END;
-    b_se_dist := JOIN(inv_XtWX_R, XtWXB_Y_U,
+    b_se_dist := JOIN(inv_XtWX_R, XtWXB_res,
                       LEFT.wi=RIGHT.wi AND LEFT.this_addr=RIGHT.this_addr,
                       calc_beta_se(LEFT,RIGHT), LOCAL);
     // XB1 ==> vector of partitions
@@ -407,42 +497,70 @@ EXPORT DATASET(Layout_Model)
                 XB_prod(LEFT, RIGHT), LOCAL);
     // U1 ==> from XB1 product, vector of partitions
     U1 := PROJECT(XB1, apply_transform(LEFT, u_i));
-    // Y1 ==> from U1, sig_v, vector of partitions
-    Y1 := PROJECT(U1, apply_transform(LEFT, sig_v));
-    // Y-Y1 count 1 for error, 0 for correct  ==> vector of partitions, sum to scalar
+    Score_Rec_DM := RECORD
+      t_work_item wi;
+      UNSIGNED2 this_addr;
+      REAL8 sse;
+      REAL8 nsse;
+      matrix_t disp_mat;
+    END;
     Score_Rec := RECORD
       t_work_item wi;
       UNSIGNED2 this_addr;
-      UNSIGNED4 correct;
-      UNSIGNED4 incorrect;
+      REAL8 sse;
+      REAL8 nsse;
+      REAL8 dispersion;
     END;
-    Score_Rec compare_Y(Part y, Part y1) := TRANSFORM
-      diff := axpy(y.part_rows, -1.0, y1.mat, 1, y.mat, 1);
-      SELF.incorrect := asum(y.part_rows, diff, 1);
-      SELF.correct := y.part_rows - asum(y.part_rows, diff, 1);
-      SELF.wi := y.wi;
-      SELF.this_addr := y.this_addr;
+    Score_Rec_DM compare_Y(Part Y, Part U1) := TRANSFORM
+      part_obs := Y.part_rows;
+      dims := Y.dims;
+      Y_mat := Y.mat;
+      U1_mat := U1.mat;
+      Y_U1 := axpy(part_obs, -1.0, U1_mat, 1, Y_mat, 1);
+      sqdiff := Apply2Cells(part_obs, 1, Y_U1, sq_cells);
+      res1 := Apply2CellsBinary(part_obs, 1, U1_mat, Y_U1, resi_uy);
+      SELF.sse := asum(part_obs, sqdiff, 1);
+      SELF.nsse := part_obs;
+      SELF.disp_mat := Apply2CellsBinary(part_obs, 1, U1_mat, res1, disp_uy);
+      SELF.wi := Y.wi;
+      SELF.this_addr := Y.this_addr;
     END;
-    scored_parts := JOIN(dep_mat, Y1,
+    Score_Rec get_disp(Score_Rec_DM sc, Part wf) := TRANSFORM
+      part_obs := wf.part_rows;
+      dims := wf.dims;
+      disp_weig := Apply2CellsBinary(part_obs, 1, sc.disp_mat, wf.mat, mult_mat);
+      SELF.dispersion := MAP(
+        ~fam.dispersion => 1.0,
+        ~doWeights => asum(part_obs, sc.disp_mat, 1),
+        asum(part_obs, disp_weig, 1)
+      );
+      SELF := sc;
+    END;
+    scored_parts_DM := JOIN(dep_mat, U1,
                          LEFT.wi=RIGHT.wi AND LEFT.this_addr=RIGHT.this_addr,
                          compare_Y(LEFT, RIGHT), LOCAL);
+    scored_parts := JOIN(scored_parts_DM, wgt_mat,
+                         LEFT.wi=RIGHT.wi AND LEFT.this_addr=RIGHT.this_addr,
+                         get_disp(LEFT, RIGHT), LOCAL);
     // delta B = B-B1, get MAX    ==> replicated single partition.
     Ext_Part get_max_delta(Part b1, Part b) := TRANSFORM
       diff := axpy(b.dims, -1.0, b1.mat, 1, b.mat[1..b.dims], 1);
       abs_diff := Apply2Mat(diff, abs_v);
       SELF.max_delta := MAX(abs_diff);
-      SELF.part_incorrect := 0;
-      SELF.part_correct := 0;
+      SELF.part_sse := 0.0;
+      SELF.part_nsse := 0.0;
+      SELF.part_dispersion := 0.0;
       SELF.iterations := iter;
       SELF := b1;
     END;
     max_delta := JOIN(b_se_dist, B_SE,
                      LEFT.wi=RIGHT.wi AND LEFT.this_addr=RIGHT.this_addr,
                      get_max_delta(LEFT, RIGHT), LOCAL);
-    // update new B_SE with correct/incorrect counts, iteration
+    // update new B_SE with sse and iteration
     Ext_Part update_score(Ext_Part b1, Score_Rec sc) := TRANSFORM
-      SELF.part_correct := sc.correct;
-      SELF.part_incorrect := sc.incorrect;
+      SELF.part_sse := sc.sse;
+      SELF.part_nsse := sc.nsse;
+      SELF.part_dispersion := sc.dispersion;
       SELF.iterations := iter;
       SELF := b1;
     END;
@@ -459,28 +577,31 @@ EXPORT DATASET(Layout_Model)
   // First, combine the beta blocks to get totals for correct/incorrect
   B_wrk0 := DISTRIBUTE(B_work, frst_addr);
   B_wrk1 := GROUP(SORT(b_wrk0, wi, LOCAL), wi, LOCAL);
-  Ext_Part roll_bwork(Ext_Part b, DATASET(Ext_Part) rws) := TRANSFORM
-    SELF.part_correct := SUM(rws, part_correct);
-    SELF.part_incorrect := SUM(rws, part_incorrect);
+  Ext_Part_C roll_bwork(Ext_Part b, DATASET(Ext_Part) rws) := TRANSFORM
+    obs := SUM(rws, part_nsse);
+    SELF.part_mse := SUM(rws, part_sse) / obs;
+    SELF.part_dispersion := IF(fam.dispersion,
+      SUM(rws, part_dispersion) / (obs - b.dims),
+      1.0);
     SELF := b;
   END;
   B_calc := ROLLUP(B_wrk1, GROUP, roll_bwork(LEFT, ROWS(LEFT)));
-  NumericField extBetas(Ext_Part p, UNSIGNED subscript) := TRANSFORM
+  NumericField extBetas(Ext_Part_C p, UNSIGNED subscript) := TRANSFORM
     beta := p.mat[subscript];
-    se := SQRT(p.mat[subscript]);
+    se := SQRT(p.mat[subscript] * p.part_dispersion);
     SELF.wi := p.wi;
     SELF.id := Constants.id_betas + subscript - 1;
     SELF.number := 1;
     SELF.value := IF(subscript>p.part_rows, se, beta);
   END;
   b_se := NORMALIZE(B_calc, LEFT.part_rows*2, extBetas(LEFT,COUNTER));
-  NumericField extStats(Ext_Part p, UNSIGNED fld) := TRANSFORM
+  NumericField extStats(Ext_Part_C p, UNSIGNED fld) := TRANSFORM
     SELF.wi := p.wi;
     SELF.id := CHOOSE(fld, Constants.id_iters, Constants.id_delta,
-                      Constants.id_correct, Constants.id_incorrect);
+                      Constants.id_mse, Constants.id_dispersion);
     SELF.number := 1;
-    SELF.value := CHOOSE(fld, p.iterations, p.max_delta, p.part_correct,
-                          p.part_incorrect);
+    SELF.value := CHOOSE(fld, p.iterations, p.max_delta, p.part_mse,
+                          p.part_dispersion);
   END;
   stats := NORMALIZE(B_calc, 4, extStats(LEFT, COUNTER));
 

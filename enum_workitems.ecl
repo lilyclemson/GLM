@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Append an enumeration of string contents to be used as work items.
  * This macro produces 2 external symbols, dsOut and dsOut_Map.  The
  * _Map dataset captures the relationship between the strings that name
@@ -11,7 +11,7 @@
 
 EXPORT enum_workitems(dsIn, dsOut, src_field, wi_name) := MACRO
   #UNIQUENAME(types);
-  IMPORT LogisticRegression.Types AS %types%;
+  IMPORT GLM.Types AS %types%;
   #UNIQUENAME(t1);
   #UNIQUENAME(t2);
   #UNIQUENAME(f1);

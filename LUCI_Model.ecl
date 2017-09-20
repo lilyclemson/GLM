@@ -1,5 +1,7 @@
-IMPORT $ AS LR;
-IMPORT LR.Types;
+﻿IMPORT $ AS GLM;
+IMPORT GLM.Types;
+IMPORT GLM.IRLS;
+IMPORT GLM.Family;
 IMPORT Std.Str;
 IMPORT Std.System.ThorLib;
 // aliases for convenience
@@ -24,15 +26,21 @@ External_model := Types.External_model;
  * requires that the work item identification strings do not contain
  * characters that need special handling for CSV data.
  *
- * @param rqst the information to map work items to models
- * @param mod the model with the external field names applied
+ * @param rqst the information to map work items to models.
+ * @param mod the model with the external field names applied.
  * @param wi_field the field name holding the work item identification
- * string
+ * string.
+ * @param fam module defining the error distribution and link of the dependents.
  */
 EXPORT DATASET(Types.LUCI_Rec)
       LUCI_Model(DATASET(Types.LUCI_Model_Rqst) rqst,
                  DATASET(Types.External_Model) mod,
-                 STRING wi_field='work_item') := FUNCTION
+                 STRING wi_field='work_item',
+                 Family.FamilyInterface fam = Family.Gaussian) := FUNCTION
+
+  // Get definition of mean function for current distribution
+  VARSTRING mu_LUCI := Fam.mu_LUCI;
+
   // merge request info to models
   ex_rq := RECORD(Types.LUCI_Model_Rqst)
     UNSIGNED4 rq_nominal;
@@ -134,7 +142,7 @@ EXPORT DATASET(Types.LUCI_Rec)
     SELF.line := 'L2SC,' + card.model_id + ','
               + card.score_card
               + ',' + (STRING)card.coef(isIntercept)[1].w
-              + ',1.0/(1.0 + EXP(-Raw_point)),Y,Y,0,Y,1';
+              + ',' + mu_LUCI + ',Y,Y,0,Y,1';
   END;
   l2sc := PROJECT(ready_sc, make_L2SC(LEFT));
   // score card election for models with multiple score cards

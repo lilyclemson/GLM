@@ -1,24 +1,26 @@
-IMPORT $ AS V;
-IMPORT $.^ AS LR;
+﻿IMPORT $ AS V;
+IMPORT $.^ AS GLM;
 IMPORT ML_Core.Types AS Types;  // From Field macro wants Types.t_...
 IMPORT ML_Core AS Core;
-IMPORT LR.Types AS LR_Types;
+IMPORT GLM.Types AS GLM_Types;
+IMPORT GLM.Family;
+IMPORT GLM.Datasets;
 
 IrisData := RECORD
   Types.t_recordID id;
-  RECORDOF(V.IrisDS);
+  RECORDOF(Datasets.Iris);
 END;
-IrisData enum_recs(V.IrisDS rec, UNSIGNED c) := TRANSFORM
+IrisData enum_recs(Datasets.Iris rec, UNSIGNED c) := TRANSFORM
   SELF.id := c;
   SELF.class := IF(rec.class=1, 1, 0);
   SELF := rec;
 END;
-iris := PROJECT(V.IrisDS, enum_recs(LEFT,COUNTER));
+iris := PROJECT(Datasets.Iris, enum_recs(LEFT,COUNTER));
 
 Core.ToField(iris, iris_indep, id, , 1,
              'sepal_length,sepal_width,petal_length,petal_width');
 Core.ToField(iris, iris_dep, id, , 1, 'class');
-iris_classes := PROJECT(iris_dep, Types.DiscreteField);
+iris_classes := PROJECT(iris_dep, Types.NumericField);
 
 // results
 Test_Values := RECORD
@@ -47,11 +49,11 @@ v_result := DATASET([{'sm.logit',
       0.00337306,  0.69715427,  0.00040520,  0.05686405,  0.02002140,
       155.76486509, 1}], Test_Values);
 // ECL version
-mdl := LR.BinomialLogisticRegression(max_iter:=4, ridge:=0.0).GetModel(iris_indep, iris_classes);
-rpt := LR.ExtractReport(mdl);
-coef_pval := LR.ExtractBeta_pval(mdl);
-devdet := LR.Deviance_Detail(iris_classes, LR.LogitScore(coef_pval, iris_indep));
-modl_dev := LR.Model_Deviance(devdet, coef_pval);
+mdl := GLM.GLM(iris_indep, iris_classes, Family.Binomial, DATASET([], Types.NumericField), max_iter:=4, ridge:=0.0).GetModel();
+rpt := GLM.ExtractReport(mdl);
+coef_pval := GLM.ExtractBeta_pval(mdl);
+devdet := GLM.Deviance_Detail(iris_classes, GLM.Predict(coef_pval, iris_indep, Family.Binomial), mdl, Family.Binomial);
+modl_dev := GLM.Model_Deviance(devdet, coef_pval);
 // Compare
 REAL8 max_diff := 0.007;
 Compare_Rec := RECORD
@@ -61,7 +63,7 @@ Compare_Rec := RECORD
   REAL8 tst_value;
   BOOLEAN equal;
 END;
-Compare_Rec check(LR_Types.pval_Model_Coef p, Test_Values t, UNSIGNED s):=TRANSFORM
+Compare_Rec check(GLM_Types.pval_Model_Coef p, Test_Values t, UNSIGNED s):=TRANSFORM
   SELF.src := t.src;
   SELF.tst_value := CHOOSE(s, p.w, p.se, p.p_value);
   SELF.std_value := CHOOSE(p.ind_col+1,
@@ -82,7 +84,7 @@ se_check := JOIN(coef_pval, v_result, LEFT.wi=RIGHT.wi,
                  check(LEFT,RIGHT, 2), LOOKUP);
 pval_check := JOIN(coef_pval, v_result, LEFT.wi=RIGHT.wi,
                    check(LEFT, RIGHT, 3), LOOKUP);
-Compare_Rec check_aic(LR_Types.Deviance_Record d, Test_Values t):=TRANSFORM
+Compare_Rec check_aic(GLM_Types.Deviance_Record d, Test_Values t):=TRANSFORM
   SELF.test := 'AIC';
   SELF.src := t.src;
   SELF.std_value := t.aic;

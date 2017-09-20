@@ -1,5 +1,5 @@
-IMPORT $ AS LR;
-IMPORT LR.Types AS Types;
+﻿IMPORT $ AS GLM;
+IMPORT GLM.Types AS Types;
 IMPORT ML_Core.Types AS Core_Types;
 
 /**
@@ -11,7 +11,7 @@ IMPORT ML_Core.Types AS Core_Types;
  */
 EXPORT DATASET(Types.pval_Model_Coef)
     ExtractBeta_pval(DATASET(Core_Types.Layout_Model) mod_ds):=FUNCTION
-  ds := LR.ExtractBeta_full(mod_ds);
+  ds := GLM.ExtractBeta_full(mod_ds);
   rslt := PROJECT(ds, Types.pval_Model_Coef);
   RETURN rslt;
 END;

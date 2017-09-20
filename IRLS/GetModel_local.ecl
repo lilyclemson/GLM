@@ -1,14 +1,14 @@
-IMPORT ML_Core;
+﻿IMPORT ML_Core;
 IMPORT ML_Core.Types AS Core_Types;
-IMPORT $.^ AS LR;
-IMPORT LR.Constants;
-IMPORT LR.Types;
+IMPORT $.^ AS GLM;
+IMPORT GLM.Constants;
+IMPORT GLM.Types;
+IMPORT GLM.Family;
 IMPORT $ AS IRLS;
 IMPORT Std;
 IMPORT Std.BLAS AS BLAS;
 //Aliases for convenience
 NumericField := Core_Types.NumericField;
-DiscreteField:= Core_Types.DiscreteField;
 Layout_Model := Core_Types.Layout_Model;
 t_work_item  := Core_Types.t_work_item;
 t_RecordID   := Core_Types.t_RecordID;
@@ -21,16 +21,19 @@ triangle     := BLAS.Types.triangle;
 diagonal     := BLAS.Types.diagonal;
 side         := BLAS.Types.side;
 gemm         := BLAS.dgemm;
+scal         := BLAS.dscal;
 trsm         := BLAS.dtrsm;
 getf2        := BLAS.dgetf2;
 axpy         := BLAS.daxpy;
+asum         := BLAS.dasum;
 Apply2Cells  := BLAS.Apply2Cells;
 make_diag    := BLAS.make_diag;
-dimm         := LR.dimm;
+dimm         := GLM.dimm;
 make_vector  := BLAS.make_vector;
 extract_diag := BLAS.extract_diag;
 t_part       := UNSIGNED2;
-//
+Apply2CellsBinary  := GLM.Apply2CellsBinary;
+
 Part := RECORD
   t_work_item wi;
   dimension_t part_rows;
@@ -38,8 +41,8 @@ Part := RECORD
   matrix_t mat;
   REAL8 max_delta := 0.0;
   UNSIGNED2 iterations := 0;
-  UNSIGNED4 correct := 0;
-  UNSIGNED4 incorrect := 0;
+  REAL8 mse := 0.0;
+  REAL8 dispersion := 1.0;
 END;
 Ext_NumFld := RECORD(NumericField)
   dimension_t part_rows;
@@ -47,55 +50,93 @@ Ext_NumFld := RECORD(NumericField)
   UNSIGNED4 inserts;
   BOOLEAN dropMe;
 END;
-REAL8 Bernoulli_EV(REAL8 v) := 1.0/(1.0+exp(-v));
-value_t u_i(value_t v,
-            dimension_t r,
-            dimension_t c) := Bernoulli_EV(v);
-value_t w_i(value_t v,
-            dimension_t r,
-            dimension_t c) := u_i(v,r,c)*(1-u_i(v, r, c));
-value_t abs_v(value_t v,
-              dimension_t r,
-              dimension_t c) := ABS(v);
-value_t sig_v(value_t v,
-              dimension_t r,
-              dimension_t c) := IF(v>=0.5, 1, 0);
-value_t init_logit(value_t v,
-                   dimension_t r,
-                   dimension_t c) := IF(v=1, LN(1.5/.5), LN(.5/1.5));
+wi_info := RECORD
+  t_work_item orig_wi;
+  t_work_item wi;
+  UNSIGNED4 col;
+  UNSIGNED4 dep_cols;
+  UNSIGNED4 dep_rows;
+  UNSIGNED4 ind_cols;
+  UNSIGNED4 ind_rows;
+  UNSIGNED4 orig_col;
+END;
+
 /**
  * Internal function to determine values for the model co-efficients
  * and selected stats from building the model.
  * @param independents the independent values
  * @param dependents the dependent values.
+ * @param fam a module defining the error distribution and link of the response
  * @param max_iter maximum number of iterations to try
  * @param epsilon the minimum change in the Beta value estimate to continue
- * @param ridge a value to pupulate a diagonal matrix that is added to
+ * @param ridge a value to populate a diagonal matrix that is added to
  * a matrix help assure that the matrix is invertible.
+ * @param weights A set of observation weights (one per dependent value).
  * @return coefficient matrix plus model building stats
  */
-EXPORT DATASET(Layout_Model)
-       GetModel_local(DATASET(NumericField) independents,
-               DATASET(DiscreteField) dependents,
-               UNSIGNED2 max_iter=200,
-               REAL8 epsilon=Constants.default_epsilon,
-               REAL8 ridge=Constants.default_ridge) := FUNCTION
+EXPORT DATASET(Layout_Model) GetModel_local(
+  DATASET(NumericField)   independents,
+   DATASET(NumericField)  dependents,
+   Family.FamilyInterface fam,
+   UNSIGNED2              max_iter = 200,
+   REAL8                  epsilon  = Constants.default_epsilon,
+   REAL8                  ridge    = Constants.default_ridge,
+   DATASET(NumericField)  weights  = DATASET([], NumericField)) := FUNCTION
+
+  // Get definition of mean and variance functions
+  REAL8 link(REAL8 v) := fam.link(v);
+  REAL8 mu(REAL8 v) := fam.mu(v);
+  REAL8 var(REAL8 v) := fam.var(v);
+  REAL8 deta(REAL8 v) := fam.deta(v);
+  REAL8 init(REAL8 v, REAL8 w = 1.0) := fam.init(v, w);
+  value_t init_uni(value_t v,
+                 dimension_t r,
+                 dimension_t c) := init(v);
+  value_t init_bin(value_t v,
+                 value_t w,
+                 dimension_t r,
+                 dimension_t c) := init(v, w);
+  value_t link_i(value_t v,
+                 dimension_t r,
+                 dimension_t c) := link(v);
+  value_t u_i(value_t v,
+              dimension_t r,
+              dimension_t c) := mu(v);
+  value_t w_i(value_t v,
+              dimension_t r,
+              dimension_t c) := 1.0 / var(v) / POWER(deta(v), 2);
+
+  // Define utility functions
+  value_t abs_v(value_t v,
+                dimension_t r,
+                dimension_t c) := ABS(v);
+  value_t sq_cells(value_t v,
+                   dimension_t r,
+                   dimension_t c) := POWER(v, 2);
+  value_t resi_uy(value_t u,
+                  value_t y_u,
+                  dimension_t r,
+                  dimension_t c) := y_u * deta(u);
+  value_t disp_uy(value_t u,
+                  value_t res,
+                  dimension_t r,
+                  dimension_t c) := w_i(u, r, c) * POWER(res, 2);
+  value_t mult_ab(value_t a,
+                  value_t b,
+                  dimension_t r,
+                  dimension_t c) := a * b;
+
+  // check for user-defined weights
+  doWeights := COUNT(weights) > 0;
+
   // check that id and number are 1 and up
   ind_screen := ASSERT(independents, id>0 AND number>0,
                        'Column left of 1 in Ind or a row 0', FAIL);
   dep_screen := ASSERT(dependents, id>0 and number>0,
                        'Column left of 1 in Dep or a row 0', FAIL);
+  wgt_screen := ASSERT(weights, id>0 and number>0,
+                       'Column left of 1 in Wgt or a row 0', FAIL);
   // work item re-map for multiple column dependents and replicate
-  wi_info := RECORD
-    t_work_item orig_wi;
-    t_work_item wi;
-    UNSIGNED4 col;
-    UNSIGNED4 dep_cols;
-    UNSIGNED4 dep_rows;
-    UNSIGNED4 ind_cols;
-    UNSIGNED4 ind_rows;
-    UNSIGNED4 orig_col;
-  END;
   dcols := TABLE(dep_screen, {wi, number, max_id:=MAX(GROUP, id), col:=1},
                  wi, number, FEW, UNSORTED);
   dep_map := PROJECT(GROUP(SORT(dcols, wi, number), wi),
@@ -167,7 +208,7 @@ EXPORT DATASET(Layout_Model)
   END;
   Ext_NumFld insert_zeros(Ext_NumFld base, UNSIGNED c):=TRANSFORM
     insertZero := c <= base.inserts;
-    SELF.value := IF(insertZero, 0, base.value);
+    SELF.value := IF(insertZero, 0.0, base.value);
     SELF.id := base.id - base.inserts + c - 1;
     SELF := base;
   END;
@@ -187,9 +228,19 @@ EXPORT DATASET(Layout_Model)
                         insert_zeros(LEFT, COUNTER));
   rr_ind := GROUP(full_ind, wi, LOCAL);
   ind_mat := ROLLUP(rr_ind, GROUP, roll_nf(LEFT, ROWS(LEFT), FALSE));
-  // re-map Y matrix to multiple vectors and fluff with zeros
-  input_dep := PROJECT(dep_screen, NumericField);
-  expd_dep := JOIN(input_dep, map_wi,
+  // replicate weights for multiple dependents
+  repl_wgt := JOIN(wgt_screen, map_wi, LEFT.wi=RIGHT.orig_wi,
+                    exp_nf(LEFT, RIGHT, TRUE), LOOKUP, MANY, FEW);
+  dist_wgt := DISTRIBUTE(repl_wgt, wi);
+  srtd_wgt := SORT(dist_wgt+end_dep, wi, number, id, dropMe, LOCAL);
+  grpd_wgt := GROUP(srtd_wgt, wi, LOCAL);
+  mrkd_wgt := ITERATE(grpd_wgt, inserts(LEFT, RIGHT, TRUE));
+  full_wgt := NORMALIZE(mrkd_wgt(NOT dropMe), LEFT.inserts+1,
+                        insert_zeros(LEFT, COUNTER));
+  rr_wgt := GROUP(full_wgt, wi, LOCAL);
+  wgt_mat := ROLLUP(rr_wgt, GROUP, roll_nf(LEFT, ROWS(LEFT), TRUE));
+  // re-map Y and weights matrices to multiple vectors and fluff with zeros
+  expd_dep := JOIN(dep_screen, map_wi,
                    LEFT.wi=RIGHT.orig_wi AND LEFT.number=RIGHT.orig_col,
                    exp_nf(LEFT, RIGHT, TRUE), LOOKUP, FEW);
   dist_dep := DISTRIBUTE(expd_dep, wi);
@@ -210,7 +261,7 @@ EXPORT DATASET(Layout_Model)
   R_mat := PROJECT(dist_wi, makeRidge(LEFT));
   // Initial beta estimate
   Part init_beta(Part x, Part y) := TRANSFORM
-    SELF.mat := make_vector(x.part_cols, 0.00000001); // make non-zero
+    SELF.mat := make_vector(x.part_cols, 0.0); // make non-zero
     SELF.iterations := 0;
     SELF.max_delta := 2*epsilon;
     SELF.part_rows := x.part_cols;
@@ -221,7 +272,7 @@ EXPORT DATASET(Layout_Model)
                  init_beta(LEFT, RIGHT), LOCAL);
   // iterative least squares to converge Beta
   DATASET(Part) iter0(DATASET(Part) Beta, UNSIGNED c):=FUNCTION
-    list := [Beta, ind_mat, dep_mat, R_mat];
+    list := [Beta, ind_mat, dep_mat, R_mat, wgt_mat];
     Part stp0(DATASET(Part) d) := TRANSFORM
       obs := d[2].part_rows;
       dims := d[2].part_cols;
@@ -229,36 +280,62 @@ EXPORT DATASET(Layout_Model)
       X := d[2].mat;
       Y := d[3].mat;
       R := d[4].mat;
-      XB := gemm(FALSE, FALSE, obs, 1, dims, 1.0, X, B);
-      V := Apply2Cells(obs, 1, XB, w_i);
-      U := Apply2Cells(obs, 1, XB, u_i);
-      W := V; //make_diag(obs, 1.0, V);
+						wf:= d[5].mat;
+      U0 := IF(~doWeights,
+        Apply2Cells(obs, 1, Y, init_uni),
+        Apply2CellsBinary(obs, 1, Y, wf, init_bin)
+      );
+      XB0 := Apply2Cells(obs, 1, U0, link_i);
+      XB := IF(c <> 1,
+        gemm(FALSE, FALSE, obs, 1, dims, 1.0, X, B),
+        XB0
+      );
+      U := IF(c <> 1, Apply2Cells(obs, 1, XB, u_i), U0);
+      W_uw := Apply2Cells(obs, 1, U, w_i);
+      W := IF(
+        doWeights,
+        Apply2CellsBinary(obs, 1, W_uw, wf, mult_ab),
+        W_uw
+      );
       XtW := dimm(TRUE, FALSE, FALSE, TRUE, dims, obs, obs, 1.0, X, W);
       XtWX_R := gemm(FALSE, FALSE, dims, dims, obs, 1.0, XtW, X, 1.0, R);
       Y_U := axpy(obs, -1.0, U, 1, Y, 1);
-      WXB_Y_U := dimm(FALSE, FALSE, TRUE, FALSE, obs, 1, obs, 1.0, W, XB, 1.0, Y_U);
-      XtWXB_Y_U := gemm(TRUE, FALSE, dims, 1, obs, 1.0, X, WXB_Y_U);
+      res := Apply2CellsBinary(obs, 1, U, Y_U, resi_uy);
+      XB_res := axpy(obs, 1.0, XB, 1, res, 1);
+      WXB_res := dimm(FALSE, FALSE, TRUE, FALSE, obs, 1, obs, 1.0, W, XB_res);
+      XtWXB_res := gemm(TRUE, FALSE, dims, 1, obs, 1.0, X, WXB_res);
       LU_XtWX_R := getf2(dims, dims, XtWX_R);
       identity := make_diag(dims);
       inner := trsm(Side.Ax, Triangle.Lower, FALSE, Diagonal.UnitTri,
                     dims, dims, dims, 1.0, LU_XtWX_R, identity);
       inv_m := trsm(Side.Ax, Triangle.Upper, FALSE, Diagonal.NotUnitTri,
                     dims, dims, dims, 1.0, LU_XtWX_R, inner);
-      new_B := gemm(FALSE, FALSE, dims, 1, dims, 1.0, inv_m, XtWXB_Y_U);
+      new_B := gemm(FALSE, FALSE, dims, 1, dims, 1.0, inv_m, XtWXB_res);
       SE := extract_diag(dims, dims, inv_M);
       XB1:= gemm(FALSE, FALSE, obs, 1, dims, 1.0, X, new_B);
       U1 := Apply2Cells(obs, 1, XB1, u_i);
-      Y1 := Apply2Cells(obs, 1, U1, sig_v);
-      avp := axpy(obs, -1, Y1, 1, Y, 1);
-      incorrect := BLAS.dasum(obs, avp, 1);
+      Y_U1 := axpy(obs, -1, U1, 1, Y, 1);
+      res1 := Apply2CellsBinary(obs, 1, U1, Y_U1, resi_uy);
+      sqY_U1 := Apply2Cells(obs, 1, Y_U1, sq_cells);
+      mse := asum(obs, sqY_U1, 1) / obs;
       B_new_B := axpy(dims, -1.0, new_B, 1, B, 1);
-      delta_B := Apply2Cells(dims, 1, b_new_B, abs_v);
-      SELF.mat := new_B + SE;
+      delta_B := Apply2Cells(dims, 1, B_new_B, abs_v);
+						disp_unif := Apply2CellsBinary(obs, 1, U1, res1, disp_uy);
+						disp_weig := Apply2CellsBinary(obs, 1, disp_unif, wf, mult_ab);
+      dispersion := MAP(
+        ~fam.dispersion => 1.0,
+        ~doWeights => asum(obs, disp_unif, 1) / (obs - dims),
+        asum(obs, disp_weig, 1) / (obs - dims)
+      );
+      SE_adj := IF(fam.dispersion,
+        scal(dims, dispersion, SE, 1),
+        SE);
+      SELF.mat := new_B + SE_adj;
       SELF.iterations := c;
       SELF.max_delta := MAX(delta_B);
       SELF.part_cols := 2;
-      SELF.incorrect := incorrect;
-      SELF.correct := obs - incorrect;
+      SELF.mse := mse;
+      SELF.dispersion := dispersion;
       SELF := d[1];
     END;
     rslt := JOIN(list, LEFT.wi=RIGHT.wi, stp0(ROWS(LEFT)),
@@ -269,7 +346,7 @@ EXPORT DATASET(Layout_Model)
                  epsilon<LEFT.max_delta AND max_iter>LEFT.iterations,
                  iter0(ROWS(LEFT), COUNTER));
   // Capture model statistics, multiple responses are still multiple wi
-  // Betas and SE for betas, Iterations, last delta, ciorrect, incorrect
+  // Betas and SE for betas, Iterations, last delta, mse, dispersion
   NumericField extBetas(Part p, UNSIGNED subscript) := TRANSFORM
     beta := p.mat[subscript];
     se := SQRT(p.mat[subscript]);
@@ -282,10 +359,10 @@ EXPORT DATASET(Layout_Model)
   NumericField extStats(Part p, UNSIGNED fld) := TRANSFORM
     SELF.wi := p.wi;
     SELF.id := CHOOSE(fld, Constants.id_iters, Constants.id_delta,
-                      Constants.id_correct, Constants.id_incorrect);
+                      Constants.id_mse, Constants.id_dispersion);
     SELF.number := 1;
-    SELF.value := CHOOSE(fld, p.iterations, p.max_delta, p.correct,
-                          p.incorrect);
+    SELF.value := CHOOSE(fld, p.iterations, p.max_delta, p.mse,
+                          p.dispersion);
   END;
   stats := NORMALIZE(calc_B, 4, extStats(LEFT, COUNTER));
   // return multiple wi to single wi and multiple columns

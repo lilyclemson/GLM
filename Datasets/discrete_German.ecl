@@ -1,6 +1,6 @@
 ﻿IMPORT ML_Core.Types AS Types;
 
-EXPORT discrete_GermanDS := MODULE
+EXPORT discrete_German := MODULE
     SHARED discrete_GermanRECORD := RECORD
         Types.t_FieldNumber id;
         Types.t_FieldNumber Status;

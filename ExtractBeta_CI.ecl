@@ -1,5 +1,5 @@
-IMPORT $ AS LR;
-IMPORT LR.Types AS Types;
+﻿IMPORT $ AS GLM;
+IMPORT GLM.Types AS Types;
 IMPORT ML_Core.Types AS Core_Types;
 
 
@@ -13,6 +13,6 @@ IMPORT ML_Core.Types AS Core_Types;
 EXPORT DATASET(Types.Confidence_Model_Coef)
     ExtractBeta_CI(DATASET(Core_Types.Layout_Model) mod_ds, REAL8 level)
     :=FUNCTION
-  ds := LR.ExtractBeta_full(mod_ds, level);
+  ds := GLM.ExtractBeta_full(mod_ds, level);
   RETURN PROJECT(ds, Types.Confidence_Model_Coef);
 END;

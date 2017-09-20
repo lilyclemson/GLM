@@ -1,19 +1,19 @@
-IMPORT ML_Core;
+﻿IMPORT ML_Core;
 IMPORT ML_Core.Types AS Core_Types;
-IMPORT $ AS LR;
-IMPORT LR.Types AS Types;
+IMPORT $ AS GLM;
+IMPORT GLM.Types AS Types;
 // aliases
-AnyField     := Core_Types.AnyField;
-NumericField := Core_Types.NumericField;
-DiscreteField:= Core_Types.DiscreteField;
-Layout_Model := Core_Types.Layout_Model;
-t_work_item  := Core_Types.t_work_item;
-t_RecordID   := Core_Types.t_RecordID;
-t_FieldNumber:= Core_Types.t_FieldNumber;
-t_FieldReal  := Core_Types.t_FieldReal;
-t_Discrete   := Core_Types.t_Discrete;
-Model_Coef   := Types.Model_Coef;
-Classify_Result:= Core_Types.Classify_Result;
+AnyField         := Core_Types.AnyField;
+NumericField     := Core_Types.NumericField;
+DiscreteField    := Core_Types.DiscreteField;
+Layout_Model     := Core_Types.Layout_Model;
+t_work_item      := Core_Types.t_work_item;
+t_RecordID       := Core_Types.t_RecordID;
+t_FieldNumber    := Core_Types.t_FieldNumber;
+t_FieldReal      := Core_Types.t_FieldReal;
+t_Discrete       := Core_Types.t_Discrete;
+Model_Coef       := Types.Model_Coef;
+Classify_Result  := Core_Types.Classify_Result;
 Confusion_Detail := Core_Types.Confusion_Detail;
 
 /**
