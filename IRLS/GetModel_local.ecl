@@ -127,7 +127,7 @@ EXPORT DATASET(Layout_Model) GetModel_local(
                   dimension_t c) := a * b;
 
   // check for user-defined weights
-  doWeights := COUNT(weights) > 0;
+  doWeights := EXISTS(weights);
 
   // check that id and number are 1 and up
   ind_screen := ASSERT(independents, id>0 AND number>0,
@@ -261,7 +261,7 @@ EXPORT DATASET(Layout_Model) GetModel_local(
   R_mat := PROJECT(dist_wi, makeRidge(LEFT));
   // Initial beta estimate
   Part init_beta(Part x, Part y) := TRANSFORM
-    SELF.mat := make_vector(x.part_cols, 0.0); // make non-zero
+    SELF.mat := make_vector(x.part_cols, 0.0); // overwritten with family's init function in iter 1
     SELF.iterations := 0;
     SELF.max_delta := 2*epsilon;
     SELF.part_rows := x.part_cols;

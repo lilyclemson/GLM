@@ -177,7 +177,7 @@ EXPORT DATASET(Layout_Model) GetModel_global(
                   dimension_t c) := w_i(u) * POWER(res, 2);
 
   // check for user-defined weights
-  doWeights := COUNT(weights) > 0;
+  doWeights := EXISTS(weights);
 
   // X cols, need to be dense
   ind_screen := ASSERT(independents, number>0 AND id>0,
@@ -357,7 +357,7 @@ EXPORT DATASET(Layout_Model) GetModel_global(
     SELF.this_addr := inf.frst_addr + c - 1;
     SELF.frst_addr := inf.frst_addr;
     SELF.parts := inf.parts;
-    SELF.mat := make_vector(inf.dims, 0.0); // make non-zero
+    SELF.mat := make_vector(inf.dims, 0.0); // overwritten with family's init function in iter 1
     SELF.obs := inf.obs;
     SELF.dims := inf.dims;
     SELF.max_delta := 2*epsilon;

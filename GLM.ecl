@@ -36,7 +36,7 @@ MODULE(Interfaces.IRegression())
    * @return The encoded model.
    */
   EXPORT DATASET(Types.Layout_Model) GetModel :=
-    IRLS.GetModel(X, Y, fam, max_iter, epsilon, ridge, weights);
+    IRLS.GetModel(X, Y, fam, max_iter, epsilon, ridge, weights, TRUE);
 
   /**
    * Predict the observations using models trained by the GetModel function.

@@ -40,9 +40,10 @@ EXPORT DATASET(Layout_Model)
                UNSIGNED max_iter = 200,
                REAL8 epsilon     = Constants.default_epsilon,
                REAL8 ridge       = Constants.default_ridge,
-               DATASET(NumericField) weights = DATASET([], NumericField)) := FUNCTION
+               DATASET(NumericField) weights = DATASET([], NumericField),
+               BOOLEAN checkDep = FALSE) := FUNCTION
   // determine which work items are local versus global
-  stats := GLM.DataStats(independents, dependents, TRUE, fam);
+  stats := GLM.DataStats(independents, dependents, checkDep, FALSE, fam);
   wi_Map := RECORD
     t_work_item wi;
     BOOLEAN run_global;

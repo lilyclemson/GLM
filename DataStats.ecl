@@ -22,20 +22,22 @@ END;
  * cardinality exceeds the Constants.limit_card value.
  * @param indep data set of independent variables
  * @param dep data set of dependent variables
- * @param field_details Boolean directive to provide field level info
+ * @param dep_details Boolean directive to provide dependent field level info
+ * @param ind_details Boolean directive to provide independent field level info
  * @param fam A module defining the error distribution and link of the response.
  * @returns a data set of information on each work item
  */
 EXPORT DATASET(Types.Data_Info)
        DataStats(DATASET(Core_Types.NumericField) indep,
                   DATASET(Core_Types.NumericField) dep,
-                  BOOLEAN field_details=FALSE,
+                  BOOLEAN dep_details=TRUE,
+                  BOOLEAN ind_details=FALSE,
                   Family.FamilyInterface fam=Family.Gaussian) := FUNCTION
   // assemble details for independent and dependent data
   // dependent details, treat as roughly grouped by work item
-  l1_dep := GROUP(dep(field_details), wi, LOCAL);
+  l1_dep := GROUP(dep(dep_details), wi, LOCAL);
   l1_dep_srt := SORT(l1_dep, number , value);
-  l1_dep_grp := GROUP(l1_dep_srt, number, LOCAL);
+  l1_dep_grp := GROUP(l1_dep_srt, number);
   l1_dep_sgl := DEDUP(l1_dep_grp, value);
   l1_dep_top := TOPN(l1_dep_sgl, Constants.limit_card+1, value);
   // rough groups reduced, local reduction
@@ -57,7 +59,7 @@ EXPORT DATASET(Types.Data_Info)
                  LEFT.wi=RIGHT.wi AND LEFT.number=RIGHT.number,
                  TRANSFORM(Flat_Field_Desc, SELF:=LEFT, SELF:=RIGHT));
   // independent details, same treatment
-  l1_ind := GROUP(indep(field_details), wi, LOCAL);
+  l1_ind := GROUP(indep(ind_details), wi, LOCAL);
   l1_ind_srt := SORT(l1_ind, number , value);
   l1_ind_grp := GROUP(l1_ind_srt, number);
   l1_ind_sgl := DEDUP(l1_ind_grp, value);
@@ -100,9 +102,9 @@ EXPORT DATASET(Types.Data_Info)
     SELF.independent_stats := IF(ind, stats, par.independent_stats);
     SELF := par;
   END;
-  d_added := DENORMALIZE(t, g1_dep(field_details), LEFT.wi=RIGHT.wi,
+  d_added := DENORMALIZE(t, g1_dep(dep_details), LEFT.wi=RIGHT.wi,
                           GROUP, add_stats(LEFT, ROWS(RIGHT), FALSE));
-  i_added0 := DENORMALIZE(d_added, g1_ind(field_details), LEFT.wi=RIGHT.wi,
+  i_added0 := DENORMALIZE(d_added, g1_ind(ind_details), LEFT.wi=RIGHT.wi,
                           GROUP, add_stats(LEFT, ROWS(RIGHT), TRUE));
 
   // Run data checks

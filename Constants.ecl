@@ -1,11 +1,11 @@
-﻿// Constants used by Logistic Regression.  Most of these are the
+﻿// Constants used by the GLM bundle.  Most of these are the
 //nominal values used by the Model data set.  A few are used to
 //control behavior.
 EXPORT Constants := MODULE
   EXPORT UNSIGNED2 limit_card := 10000;  // upper limit for count
   EXPORT REAL8 default_epsilon := 0.00000001;
   EXPORT REAL8 default_ridge := 0.00001;
-  EXPORT UNSIGNED4 local_cap := 5000000 : STORED('LR_LOCAL_MATRIX_CAP');
+  EXPORT UNSIGNED4 local_cap := 5000000 : STORED('GLM_LOCAL_MATRIX_CAP');
   // model record identifiers
   EXPORT id_base := 0;
   EXPORT id_iters := id_base + 1;

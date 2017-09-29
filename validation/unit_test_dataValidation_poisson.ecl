@@ -60,7 +60,7 @@ ind0 := DATASET(
      {3, 8, 1, .3}, {3, 8, 2, .4}, {3, 8, 3, .4},
      {3, 9, 1, .4}, {3, 9, 2, .7}, {3, 9, 3, .3}], NumericField);
 ind := WHEN(ind0, #STORED('GLM_LOCAL_MATRIX_CAP', 20));
-stats := GLM.DataStats(ind, dep, TRUE, Family.Poisson);
+stats := GLM.DataStats(ind, dep, TRUE, FALSE, Family.Poisson);
 
 stats_out := OUTPUT(stats, NAMED('stats'));
 EXPORT unit_test_dataValidation_poisson := SEQUENTIAL(stats_out);
