@@ -1,5 +1,5 @@
-﻿IMPORT $.^ AS GLM;
-IMPORT GLM.Family;
+IMPORT $.^ AS GLMmod;
+IMPORT GLMmod.Family;
 IMPORT ML_Core.Types AS Core_Types;
 NumericField := Core_Types.NumericField;
 
@@ -60,7 +60,7 @@ ind0 := DATASET(
      {3, 8, 1, .3}, {3, 8, 2, .4}, {3, 8, 3, .4},
      {3, 9, 1, .4}, {3, 9, 2, .7}, {3, 9, 3, .3}], NumericField);
 ind := WHEN(ind0, #STORED('GLM_LOCAL_MATRIX_CAP', 20));
-stats := GLM.DataStats(ind, dep, TRUE, FALSE, Family.Binomial);
+stats := GLMmod.DataStats(ind, dep, TRUE, FALSE, Family.Binomial);
 
 stats_out := OUTPUT(stats, NAMED('stats'));
 EXPORT unit_test_dataValidation_binomial := SEQUENTIAL(stats_out);

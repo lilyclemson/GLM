@@ -1,10 +1,10 @@
-﻿IMPORT $ AS V;
-IMPORT $.^ AS GLM;
+IMPORT $ AS V;
+IMPORT $.^ AS GLMmod;
 IMPORT ML_Core.Types AS Types;  // From Field macro wants Types.t_...
 IMPORT ML_Core AS Core;
-IMPORT GLM.Types AS GLM_Types;
-IMPORT GLM.Family;
-IMPORT GLM.Datasets;
+IMPORT GLMmod.Types AS GLM_Types;
+IMPORT GLMmod.Family;
+IMPORT GLMmod.Datasets;
 
 IrisData := RECORD
   Types.t_recordID id;
@@ -49,11 +49,11 @@ v_result := DATASET([{'sm.logit',
       0.00337306,  0.69715427,  0.00040520,  0.05686405,  0.02002140,
       155.76486509, 1}], Test_Values);
 // ECL version
-mdl := GLM.GLM(iris_indep, iris_classes, Family.Binomial, DATASET([], Types.NumericField), max_iter:=4, ridge:=0.0).GetModel();
-rpt := GLM.ExtractReport(mdl);
-coef_pval := GLM.ExtractBeta_pval(mdl);
-devdet := GLM.Deviance_Detail(iris_classes, GLM.Predict(coef_pval, iris_indep, Family.Binomial), mdl, Family.Binomial);
-modl_dev := GLM.Model_Deviance(devdet, coef_pval);
+mdl := GLMmod.GLM(iris_indep, iris_classes, Family.Binomial, DATASET([], Types.NumericField), max_iter:=4, ridge:=0.0).GetModel();
+rpt := GLMmod.ExtractReport(mdl);
+coef_pval := GLMmod.ExtractBeta_pval(mdl);
+devdet := GLMmod.Deviance_Detail(iris_classes, GLMmod.Predict(coef_pval, iris_indep, Family.Binomial), mdl, Family.Binomial);
+modl_dev := GLMmod.Model_Deviance(devdet, coef_pval);
 // Compare
 REAL8 max_diff := 0.007;
 Compare_Rec := RECORD
@@ -95,6 +95,8 @@ aic_check := JOIN(modl_dev, v_result, LEFT.wi=RIGHT.wi,
                   check_aic(LEFT, RIGHT), LOOKUP);
 all_checks := coef_check + se_check + pval_check + aic_check;
 errors := all_checks(NOT equal);
-err_out := OUTPUT(errors, NAMED('Error_report'));
-ok_out := OUTPUT('Passed', NAMED('Status'));
-EXPORT BinomialRegression := IF(EXISTS(errors), err_out, ok_out);
+OUTPUT(all_checks, NAMED('all'));
+OUTPUT(errors, NAMED('Error_report'));
+status := IF(EXISTS(errors), 'Failed', 'Passed');
+OUTPUT(status, NAMED('Status'));
+

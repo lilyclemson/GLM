@@ -1,4 +1,4 @@
-﻿IMPORT Std.BLAS;
+IMPORT Std.BLAS;
 IMPORT Std.BLAS.Types AS Types;
 
 /**

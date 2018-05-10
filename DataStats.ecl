@@ -1,7 +1,7 @@
-﻿IMPORT $ AS GLM;
-IMPORT GLM.Types AS Types;
-IMPORT GLM.Constants AS Constants;
-IMPORT GLM.Family;
+IMPORT $ AS GLMmod;
+IMPORT GLMmod.Types AS Types;
+IMPORT GLMmod.Constants AS Constants;
+IMPORT GLMmod.Family;
 IMPORT ML_Core.Types AS Core_Types;
 // convenient aliases
 Data_Info := Types.Data_Info;
@@ -13,20 +13,24 @@ Flat_Field_Desc := RECORD(Types.Field_Desc)
 END;
 
 /**
- * Information about the datasets.  Without details the range
- * for the x and y (independent and dependent) columns.  Note that
- * a column of all zero values cannot be distinguished from a missing
- * column.
- * When details are requested, the cardinality, minimum, and maximum
- * values are returned.  A zero cardinality is returned when the field
- * cardinality exceeds the Constants.limit_card value.
- * @param indep data set of independent variables
- * @param dep data set of dependent variables
- * @param dep_details Boolean directive to provide dependent field level info
- * @param ind_details Boolean directive to provide independent field level info
- * @param fam A module defining the error distribution and link of the response.
- * @returns a data set of information on each work item
- */
+  * Produce summary information about the datasets.
+  * <p>When dep_details or ind_details = FALSE, indicates the range
+  * for the x or y (independent or dependent) columns.
+  * <p>When dep_details or ind_details = TRUE, the cardinality, minimum, and maximum
+  * values are returned.  A zero cardinality is returned when the field
+  * cardinality exceeds the Constants.limit_card value.
+  * <p>Note that
+  * a column of all zero values cannot be distinguished from a missing
+  * column.
+  *
+  * @param indep data set of independent variables.
+  * @param dep data set of dependent variables.
+  * @param dep_details Boolean directive to provide dependent field level info.
+  * @param field_details Boolean directive to provide independent field level info.
+  * @return a data set of information on each work item in Data_Info format.
+  * @see Types.Data_Info
+  * @see Constants.limit_card
+  */
 EXPORT DATASET(Types.Data_Info)
        DataStats(DATASET(Core_Types.NumericField) indep,
                   DATASET(Core_Types.NumericField) dep,
@@ -108,7 +112,7 @@ EXPORT DATASET(Types.Data_Info)
                           GROUP, add_stats(LEFT, ROWS(RIGHT), TRUE));
 
   // Run data checks
-  distCheck0 := GLM.DataCheck(i_added0, fam);
+  distCheck0 := GLMmod.DataCheck(i_added0, fam);
   i_added_distCheck := JOIN(i_added0, distCheck0, LEFT.wi = RIGHT.wi, LIMIT(1, FAIL));
   i_added1 := ASSERT(i_added_distCheck,
     ASSERT(valid, 'Work item ' + (varstring)wi + ' had the following problems:'),

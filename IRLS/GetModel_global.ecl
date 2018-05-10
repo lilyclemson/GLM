@@ -1,9 +1,9 @@
 ﻿IMPORT ML_Core;
 IMPORT ML_Core.Types AS Core_Types;
-IMPORT $.^ AS GLM;
-IMPORT GLM.Constants;
-IMPORT GLM.Types;
-IMPORT GLM.Family;
+IMPORT $.^ AS GLMmod;
+IMPORT GLMmod.Constants;
+IMPORT GLMmod.Types;
+IMPORT GLMmod.Family;
 IMPORT $ AS IRLS;
 IMPORT Std;
 IMPORT Std.BLAS AS BLAS;
@@ -29,8 +29,8 @@ Apply2Cells  := BLAS.Apply2Cells;
 make_diag    := BLAS.make_diag;
 make_vector  := BLAS.make_vector;
 extract_diag := BLAS.extract_diag;
-dimm         := GLM.dimm;
-Apply2CellsBinary  := GLM.Apply2CellsBinary;
+dimm         := GLMmod.dimm;
+Apply2CellsBinary  := GLMmod.Apply2CellsBinary;
 
 Part := RECORD
   t_work_item wi;

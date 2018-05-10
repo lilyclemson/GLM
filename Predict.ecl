@@ -1,7 +1,7 @@
-﻿IMPORT $ AS GLM;
-IMPORT GLM.Types;
-IMPORT GLM.IRLS;
-IMPORT GLM.Family;
+﻿IMPORT $ AS GLMmod;
+IMPORT GLMmod.Types;
+IMPORT GLMmod.IRLS;
+IMPORT GLMmod.Family;
 IMPORT ML_Core.Types AS Core_Types;
 
 //aliases

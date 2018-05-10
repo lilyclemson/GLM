@@ -1,13 +1,13 @@
-﻿IMPORT $ AS GLM;
-IMPORT GLM.Types AS Types;
+﻿IMPORT $ AS GLMmod;
+IMPORT GLMmod.Types AS Types;
 IMPORT ML_Core.Math AS Core_Math;
 IMPORT ML_Core.Types AS Core_Types;
 // convenience aliases
-id_betas := GLM.Constants.id_betas;
-id_betas_coef := GLM.Constants.id_betas_coef;
-id_betas_SE := GLM.Constants.id_betas_SE;
-id_base := GLM.Constants.id_base;
-base_ind_vars := GLM.Constants.base_ind_vars;
+id_betas := GLMmod.Constants.id_betas;
+id_betas_coef := GLMmod.Constants.id_betas_coef;
+id_betas_SE := GLMmod.Constants.id_betas_SE;
+id_base := GLMmod.Constants.id_base;
+base_ind_vars := GLMmod.Constants.base_ind_vars;
 t_work_item := Core_Types.t_work_item;
 Model := Core_Types.Layout_Model;
 Full_Coef := Types.Full_Model_Coef;
@@ -27,16 +27,20 @@ Work := RECORD(Full_Coef)
   REAL8 ind_vars;
 END;
 /**
- * Extract the coefficient information including confidence intervals
- * @param mod_ds the model information
- * @param level the significance value for the intervals
- * @return the coefficient information for the model
- */
+  * Extract the coefficient information including confidence intervals,
+  * z and p values.
+  *
+  * @param mod_ds the model as returned from GetModel.
+  * @param level the significance value for the intervals.
+  * @return the coefficient information for the model in Full_Model_Coef format,
+  *         with zero as the constant term.
+  * @see Types.Full_Model_Coef
+  */
 EXPORT DATASET(Types.Full_Model_Coef)
        ExtractBeta_full(DATASET(Core_Types.Layout_Model) mod_ds,
                         REAL8 level=0.05):=FUNCTION
-  iv := mod_ds(id=id_base AND number=GLM.Constants.base_ind_vars);
-  no := mod_ds(id=id_base AND number=GLM.Constants.base_obs);
+  iv := mod_ds(id=id_base AND number=GLMmod.Constants.base_ind_vars);
+  no := mod_ds(id=id_base AND number=GLMmod.Constants.base_obs);
   ivdf := JOIN(no, iv, LEFT.wi=RIGHT.wi, make_ivdf(LEFT,RIGHT), LOOKUP);
   Work pick(Core_Types.Layout_Model m, ivdf_rec d) := TRANSFORM
     first_w := id_betas + (id_betas_coef*(d.ind_vars+1));
