@@ -5,14 +5,14 @@ columns := 10;
 max_iterations := 1;
 //*******************************************************
 //#WORKUNIT('name', 'RunBinomial');
-IMPORT $.^ AS GLM;
-IMPORT GLM.Family;
+IMPORT $.^ AS GLMmod;
+IMPORT GLMmod.Family;
 IMPORT $ AS Perf;
 IMPORT ML_Core.Types AS Core_Types;
 NumericField := Core_Types.NumericField;
 DiscreteField := Core_Types.DiscreteField;
-lcl := GLM.Constants.builder_irls_local;
-gbl := GLM.Constants.builder_irls_global;
+lcl := GLMmod.Constants.builder_irls_local;
+gbl := GLMmod.Constants.builder_irls_global;
 
 obs := Perf.GenData(num_work_items, columns, avg_size, 2, FALSE) : INDEPENDENT;
 resp_data := PROJECT(obs, TRANSFORM(NumericField, SELF:=LEFT.resp_var));
@@ -27,7 +27,7 @@ ds_tab := TABLE(obs,
       wi, resp_var.value, FEW, UNSORTED);
 test_data := OUTPUT(SORT(ds_tab, wi, cls), NAMED('Test_Stats'));
 // Run it
-GLM_module := GLM.GLM(
+GLM_module := GLMmod.GLM(
   ind_data,
   resp_data,
   Family.Binomial,
@@ -36,11 +36,11 @@ GLM_module := GLM.GLM(
   POWER(10, -20)
 );
 mod := GLM_module.GetModel();
-reports := GLM.ExtractReport(mod);
-conf_det := GLM.Confusion(
+reports := GLMmod.ExtractReport(mod);
+conf_det := GLMmod.Confusion(
   PROJECT(resp_data, DiscreteField),
-  GLM.LogitPredict(GLM.ExtractBeta(mod),ind_data));
-conf_rpt := GLM.BinomialConfusion(conf_det);
+  GLMmod.LogitPredict(GLMmod.ExtractBeta(mod),ind_data));
+conf_rpt := GLMmod.BinomialConfusion(conf_det);
 confusion_report := OUTPUT(ENTH(conf_rpt, 100), NAMED('Sample_Confusion_Report'));
 rpt_smpls := OUTPUT(ENTH(reports,100), NAMED('Sample_Reports'));
 bad_reports := reports(NOT EXISTS(stats));

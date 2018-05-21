@@ -1,9 +1,9 @@
-﻿IMPORT ML_Core;
+IMPORT ML_Core;
 IMPORT ML_Core.Types AS Core_Types;
-IMPORT $.^ AS GLM;
-IMPORT GLM.Constants;
-IMPORT GLM.Types;
-IMPORT GLM.Family;
+IMPORT $.^ AS GLMmod;
+IMPORT GLMmod.Constants;
+IMPORT GLMmod.Types;
+IMPORT GLMmod.Family;
 IMPORT $ AS IRLS;
 IMPORT Std;
 IMPORT Std.BLAS AS BLAS;
@@ -28,11 +28,11 @@ axpy         := BLAS.daxpy;
 asum         := BLAS.dasum;
 Apply2Cells  := BLAS.Apply2Cells;
 make_diag    := BLAS.make_diag;
-dimm         := GLM.dimm;
+dimm         := GLMmod.dimm;
 make_vector  := BLAS.make_vector;
 extract_diag := BLAS.extract_diag;
 t_part       := UNSIGNED2;
-Apply2CellsBinary  := GLM.Apply2CellsBinary;
+Apply2CellsBinary  := GLMmod.Apply2CellsBinary;
 
 Part := RECORD
   t_work_item wi;
@@ -280,7 +280,7 @@ EXPORT DATASET(Layout_Model) GetModel_local(
       X := d[2].mat;
       Y := d[3].mat;
       R := d[4].mat;
-						wf:= d[5].mat;
+      wf:= d[5].mat;
       U0 := IF(~doWeights,
         Apply2Cells(obs, 1, Y, init_uni),
         Apply2CellsBinary(obs, 1, Y, wf, init_bin)

@@ -1,10 +1,10 @@
-﻿IMPORT ML_Core;
+IMPORT ML_Core;
 IMPORT ML_Core.Types AS Core_Types;
-IMPORT $.^ AS GLM;
-IMPORT GLM.Constants;
-IMPORT GLM.Types;
-IMPORT GLM.Family;
-IMPORT $ AS IRLS;
+IMPORT $.^ AS GLMmod;
+IMPORT GLMmod.Constants;
+IMPORT GLMmod.Types;
+IMPORT GLMmod.Family;
+IMPORT GLMmod.IRLS;
 IMPORT STD.System.ThorLib;
 //Aliases for convenience
 AnyField     := Core_Types.AnyField;
@@ -43,7 +43,7 @@ EXPORT DATASET(Layout_Model)
                DATASET(NumericField) weights = DATASET([], NumericField),
                BOOLEAN checkDep = FALSE) := FUNCTION
   // determine which work items are local versus global
-  stats := GLM.DataStats(independents, dependents, checkDep, FALSE, fam);
+  stats := GLMmod.DataStats(independents, dependents, checkDep, FALSE, fam);
   wi_Map := RECORD
     t_work_item wi;
     BOOLEAN run_global;

@@ -1,6 +1,6 @@
-﻿IMPORT GLM AS GLM;
-IMPORT GLM.Types AS Types;
-IMPORT GLM.Family;
+IMPORT $.^ AS GLMmod;
+IMPORT GLMmod.Types AS Types;
+IMPORT GLMmod.Family;
 IMPORT ML_Core;
 
 num_recs := 300;
@@ -20,22 +20,22 @@ Work1 gen(UNSIGNED c) := TRANSFORM
 END;
 ds := DATASET(num_recs, gen(COUNTER));
 // Enumerate the work items
-GLM.enum_workitems(ds, ds_w_wi, wi_str, wi);
+GLMmod.enum_workitems(ds, ds_w_wi, wi_str, wi);
 // Create dep and dep_map for response variable
 ML_Core.ToField(ds_w_wi, dep, rid, wi,, 'dep');
 dep_df := PROJECT(dep, Types.NumericField);
 // Create indep and indep_map for explanatory data
 ML_Core.ToField(ds_w_wi, indep, rid, wi,, 'v1, v2');
 //
-model := GLM.GLM(indep, dep_df, Family.Binomial).GetModel();
-int_model := GLM.ExtractBeta_full(model);
-ext_model := GLM.Named_Model(model, indep_map, dep_map, ds_w_wi_map);
+model := GLMmod.GLM(indep, dep_df, Family.Binomial).GetModel();
+int_model := GLMmod.ExtractBeta_full(model);
+ext_model := GLMmod.Named_Model(model, indep_map, dep_map, ds_w_wi_map);
 //
 luci_rq := DATASET([{'$_mod','$ Model','dep', ALL,'$'}
                    ,{'mod1','Model 1', 'dep', ALL,''}
                    ,{'mod2','Model 2', 'dep', ['Grp-02', 'Grp-00'],'Q'}
                    ], Types.LUCI_Model_Rqst);
-luci := GLM.LUCI_Model(luci_rq, ext_model, 'wi_str', Family.Binomial);
+luci := GLMmod.LUCI_Model(luci_rq, ext_model, 'wi_str', Family.Binomial);
 //
 t0 := TABLE(ds_w_wi, {wi_str, wi, dep, c:=COUNT(GROUP),
                  av_v1:=AVE(GROUP,v1), av_v2:=AVE(GROUP,v2),

@@ -1,13 +1,14 @@
 ﻿IMPORT ML_Core;
 IMPORT ML_Core.Types AS Core_Types;
-IMPORT $ AS GLM;
-IMPORT GLM.Types;
-IMPORT GLM.Family;
+IMPORT $ AS GLMmod;
+IMPORT GLMmod.Types;
+IMPORT GLMmod.Family;
 
 /**
  * Internal function to determine whether the dependent variable is appropriate
  * for the specified error distribution. Eg. A continuous dependent varying over
  * [0, 100] is not valid for the binomial family of GLMs.
+ * @internal
  * @param stats Set of data statistics returned by the DataStats function.
  * @param fam A module defining the error distribution and link of the response.
  * @return Dataset indicating validity for each work item and warning messages

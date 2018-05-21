@@ -1,4 +1,4 @@
-IMPORT GLM;
+IMPORT $.^ AS GLMmod;
 IMPORT Std.BLAS.Types AS Types;
 Types.matrix_t x := [1.0, 2.0, 3.0, 4.0, 5.0, 6.0];
 Types.matrix_t a2 := [2.0, 3.0];
@@ -24,11 +24,11 @@ std := DATASET([{desc1, 3, 2, std1}, {desc2, 2, 3, std2},
                 {desc3, 2, 3, std3}, {desc4, 2, 3, std4},
                 {desc5, 3, 2, std5}], Test_Rec);
 // Run tests
-test1 := GLM.dimm(FALSE, FALSE, FALSE, TRUE, 3, 2, 2, 1.0, x, a2);
-test2 := GLM.dimm(FALSE, FALSE, TRUE, FALSE, 2, 3, 2, 1.0, a2, x);
-test3 := GLM.dimm(TRUE, FALSE, FALSE, TRUE, 2, 3, 3, 1.0, x, a3);
-test4 := GLM.dimm(FALSE, TRUE, TRUE, FALSE, 2, 3, 2, 1.0, a2, x);
-test5 := GLM.dimm(FALSE, FALSE, FALSE, TRUE, 3, 2, 2, 2.0, x, a2, 3.0, c);
+test1 := GLMmod.dimm(FALSE, FALSE, FALSE, TRUE, 3, 2, 2, 1.0, x, a2);
+test2 := GLMmod.dimm(FALSE, FALSE, TRUE, FALSE, 2, 3, 2, 1.0, a2, x);
+test3 := GLMmod.dimm(TRUE, FALSE, FALSE, TRUE, 2, 3, 3, 1.0, x, a3);
+test4 := GLMmod.dimm(FALSE, TRUE, TRUE, FALSE, 2, 3, 2, 1.0, a2, x);
+test5 := GLMmod.dimm(FALSE, FALSE, FALSE, TRUE, 3, 2, 2, 2.0, x, a2, 3.0, c);
 test := DATASET([{desc1, 3, 2, test1}, {desc2, 2, 3, test2},
                  {desc3, 2, 3, test3}, {desc4, 2, 3, test4},
                  {desc5, 3, 2, test5}], Test_Rec);

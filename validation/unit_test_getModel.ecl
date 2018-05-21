@@ -1,7 +1,7 @@
-﻿IMPORT $.^ AS GLM;
-IMPORT GLM.Family;
+﻿IMPORT $.^ AS GLMmod;
+IMPORT GLMmod.Family;
 IMPORT ML_Core.Types AS Core_Types;
-IMPORT GLM.validation.unit_test_getModel_Rdata as rdata;
+IMPORT GLMmod.validation.unit_test_getModel_Rdata as rdata;
 NumericField := Core_Types.NumericField;
 Layout_Model := Core_types.Layout_Model;
 
@@ -124,26 +124,26 @@ wgt_nz := wgt(value <> 0);
 
 maxit := 100;
 eps := 0.0000001;
-rdg := GLM.Constants.default_ridge;
+rdg := GLMmod.Constants.default_ridge;
 
-mod_g_bn := GLM.IRLS.getModel_global(ind_nz, dep_bn_nz, Family.Quasibinomial, maxit, eps, rdg, wgt_nz);
-mod_l_bn := GLM.IRLS.getModel_local(ind_nz, dep_bn_nz, Family.Quasibinomial, maxit, eps, rdg, wgt_nz);
+mod_g_bn := GLMmod.IRLS.getModel_global(ind_nz, dep_bn_nz, Family.Quasibinomial, maxit, eps, rdg, wgt_nz);
+mod_l_bn := GLMmod.IRLS.getModel_local(ind_nz, dep_bn_nz, Family.Quasibinomial, maxit, eps, rdg, wgt_nz);
 mod_r_bn := rdata.Quasibinomial;
 
-mod_g_ps := GLM.IRLS.getModel_global(ind_nz, dep_cnt_nz, Family.Quasipoisson, maxit, eps, rdg, wgt_nz);
-mod_l_ps := GLM.IRLS.getModel_local(ind_nz, dep_cnt_nz, Family.Quasipoisson, maxit, eps, rdg, wgt_nz);
+mod_g_ps := GLMmod.IRLS.getModel_global(ind_nz, dep_cnt_nz, Family.Quasipoisson, maxit, eps, rdg, wgt_nz);
+mod_l_ps := GLMmod.IRLS.getModel_local(ind_nz, dep_cnt_nz, Family.Quasipoisson, maxit, eps, rdg, wgt_nz);
 mod_r_ps := rdata.Quasipoisson;
 
-mod_g_ga := GLM.IRLS.getModel_global(ind_nz, dep_cnt_nz, Family.Gamma, maxit, eps, rdg, wgt_nz);
-mod_l_ga := GLM.IRLS.getModel_local(ind_nz, dep_cnt_nz, Family.Gamma, maxit, eps, rdg, wgt_nz);
+mod_g_ga := GLMmod.IRLS.getModel_global(ind_nz, dep_cnt_nz, Family.Gamma, maxit, eps, rdg, wgt_nz);
+mod_l_ga := GLMmod.IRLS.getModel_local(ind_nz, dep_cnt_nz, Family.Gamma, maxit, eps, rdg, wgt_nz);
 mod_r_ga := rdata.Gamma;
 
-mod_g_gs := GLM.IRLS.getModel_global(ind_nz, dep_cnt_nz, Family.Gaussian, maxit, eps, rdg, wgt_nz);
-mod_l_gs := GLM.IRLS.getModel_local(ind_nz, dep_cnt_nz, Family.Gaussian, maxit, eps, rdg, wgt_nz);
+mod_g_gs := GLMmod.IRLS.getModel_global(ind_nz, dep_cnt_nz, Family.Gaussian, maxit, eps, rdg, wgt_nz);
+mod_l_gs := GLMmod.IRLS.getModel_local(ind_nz, dep_cnt_nz, Family.Gaussian, maxit, eps, rdg, wgt_nz);
 mod_r_gs := rdata.Gaussian;
 
-mod_g_ig := GLM.IRLS.getModel_global(ind_nz, dep_cnt_nz, Family.InvGauss, maxit, eps, rdg, wgt_nz);
-mod_l_ig := GLM.IRLS.getModel_local(ind_nz, dep_cnt_nz, Family.InvGauss, maxit, eps, rdg, wgt_nz);
+mod_g_ig := GLMmod.IRLS.getModel_global(ind_nz, dep_cnt_nz, Family.InvGauss, maxit, eps, rdg, wgt_nz);
+mod_l_ig := GLMmod.IRLS.getModel_local(ind_nz, dep_cnt_nz, Family.InvGauss, maxit, eps, rdg, wgt_nz);
 mod_r_ig := rdata.InvGauss;
 
 cmpr := RECORD

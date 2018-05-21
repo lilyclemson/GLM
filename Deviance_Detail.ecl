@@ -1,10 +1,10 @@
-﻿IMPORT ML_Core;
+IMPORT ML_Core;
 IMPORT ML_Core.Types AS Core_Types;
-IMPORT $ AS GLM;
-IMPORT GLM.Types AS Types;
-IMPORT GLM.IRLS;
-IMPORT GLM.Family;
-IMPORT GLM.Constants;
+IMPORT $ AS GLMmod;
+IMPORT GLMmod.Types AS Types;
+IMPORT GLMmod.IRLS;
+IMPORT GLMmod.Family;
+IMPORT GLMmod.Constants;
 
 // aliases
 AnyField     := Core_Types.AnyField;
@@ -17,16 +17,21 @@ t_RecordID   := Core_Types.t_RecordID;
 t_FieldNumber:= Core_Types.t_FieldNumber;
 t_FieldReal  := Core_Types.t_FieldReal;
 t_Discrete   := Core_Types.t_Discrete;
-
 /**
- * Detail deviance for each observation.
- * @param dependents original dependent records for the model
- * @param predicts the predicted values of the response variable
- * @param model the fitted model object
- * @param fam a module defining the error distribution and link of the dependents
- * @return the deviance information by observation and the log likelihood
- * of the predicted result.
- */
+  * Deviance detail report. <p>Provides deviance information 
+  * for each observation.
+  *
+  * <p>Analysis of Deviance is analogous to the Analysis of Variance (ANOVA) used in
+  * least-squares modeling, but adapted to the general linear model (GLM).
+  *
+  * @param dependents original dependent records for the model.
+  * @param predicts the predicted values of the response variable.
+  * @param model the fitted model object as returned from GetModel.
+  * @param fam a module defining the error distribution and link of the dependents
+  * @return the deviance information by observation and the log likelihood
+  * of the predicted result in Observation_Deviance format.
+  * @see Types.Observation_Deviance
+  */
 EXPORT DATASET(Types.Observation_Deviance)
        Deviance_Detail(DATASET(NumericField) dependents,
                  DATASET(NumericField) predicts,

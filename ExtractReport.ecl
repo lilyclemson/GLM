@@ -1,32 +1,34 @@
-﻿IMPORT $ AS GLM;
-IMPORT GLM.Types AS Types;
-IMPORT GLM.Constants AS Constants;
+﻿IMPORT $ AS GLMmod;
+IMPORT GLMmod.Types AS Types;
+IMPORT GLMmod.Constants AS Constants;
 IMPORT ML_Core.Types AS Core_Types;
 
 // convenience aliases
 NumericField := Core_Types.NumericField;
 Layout_Model := Core_Types.Layout_Model;
-id_base := GLM.Constants.id_base;
-id_iters := GLM.Constants.id_iters;
-id_delta := GLM.Constants.id_delta;
-id_betas := GLM.Constants.id_betas;
-base_max_iter := GLM.Constants.base_max_iter;
-base_epsilon := GLM.Constants.base_epsilon;
-base_ind_vars := GLM.Constants.base_ind_vars;
-base_dep_vars := GLM.Constants.base_dep_vars;
-base_obs := GLM.Constants.base_obs;
-base_builder := GLM.Constants.base_builder;
-id_mse := GLM.Constants.id_mse;
-id_dispersion := GLM.Constants.id_dispersion;
+id_base := GLMmod.Constants.id_base;
+id_iters := GLMmod.Constants.id_iters;
+id_delta := GLMmod.Constants.id_delta;
+id_betas := GLMmod.Constants.id_betas;
+base_max_iter := GLMmod.Constants.base_max_iter;
+base_epsilon := GLMmod.Constants.base_epsilon;
+base_ind_vars := GLMmod.Constants.base_ind_vars;
+base_dep_vars := GLMmod.Constants.base_dep_vars;
+base_obs := GLMmod.Constants.base_obs;
+base_builder := GLMmod.Constants.base_builder;
+id_mse := GLMmod.Constants.id_mse;
+id_dispersion := GLMmod.Constants.id_dispersion;
 Model_Report := Types.Model_Report;
-Stats := Types.Model_Stats;
+Stats := Types.Regressor_Stats;
 Ex_Stats := RECORD(Stats)
   Core_Types.t_work_item wi;
 END;
 /**
- * Extract Report records from model
- * @param mod_ds the model dataset
- * @return the model report dataset
+ * Create a model report from a model.
+ *
+ * @param mod_ds the model as returned from GetModel.
+ * @return the model report in Model_Report format.
+ * @see Types.Model_Report
  */
 EXPORT DATASET(Types.Model_Report)
        ExtractReport(DATASET(Core_Types.Layout_Model) mod_ds):=FUNCTION
