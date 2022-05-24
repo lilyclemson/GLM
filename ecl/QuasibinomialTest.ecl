@@ -4,7 +4,6 @@
 
 IMPORT $;
 IMPORT $.^ AS GLMmod;
-IMPORT GLMmod.Types AS GLM_Types;
 IMPORT GLMmod.Family;
 
 errors := $.FamilyTest(Family.Quasibinomial, 
