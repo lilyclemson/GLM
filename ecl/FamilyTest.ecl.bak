@@ -123,7 +123,7 @@ FamilyTest(Family.FamilyInterface family, DATASET(Test_Values) values) := FUNCTI
 		RETURN(errors);
 END;
 
-myMod := #IFDEFINED(root.tmod, 'Full');
+myMod := #IFDEFINED(root.tmod, 'Quasibinomial');
 
 #IF(myMod = 'Binomial')
 	fam := Family.Binomial;
