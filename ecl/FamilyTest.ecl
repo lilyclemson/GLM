@@ -2,6 +2,8 @@
 ## HPCC SYSTEMS software Copyright (C) 2022 HPCC Systems®.  All rights reserved.
 ############################################################################## */
 
+#ONWARNING(4531, ignore);
+
 //version tmod='Binomial'
 //version tmod='Gamma'
 //version tmod='Gaussian'
@@ -14,7 +16,6 @@
 // Each version above represents a family and a valid input set
 
 IMPORT ^ AS root;
-IMPORT $ AS V;
 IMPORT $.^ AS GLMmod;
 IMPORT ML_Core.Types AS Types;  
 IMPORT ML_Core AS Core;
@@ -22,7 +23,7 @@ IMPORT GLMmod.Types AS GLM_Types;
 IMPORT GLMmod.Family;
 IMPORT GLMmod.Datasets;
 
-EXPORT Test_Values := RECORD
+Test_Values := RECORD
   STRING8 src;
   REAL8 icept_coef;
   REAL8 sl_coef;
@@ -61,11 +62,11 @@ Core.ToField(iris, iris_indep, id, , 1,
 Core.ToField(iris, iris_dep, id, , 1, 'class');
 iris_classes := PROJECT(iris_dep, Types.NumericField);
 
-FamilyTest(Family.FamilyInterface family, DATASET(Test_Values) v_result) := FUNCTION
+// Takes in a family interface and a set of values and returns any errors
+FamilyTest(Family.FamilyInterface family, DATASET(Test_Values) values) := FUNCTION
 			
 		// Calls functions from the GLM bundle to generate a model
 		mdl := GLMmod.GLM(iris_indep, iris_classes, family, DATASET([], Types.NumericField), max_iter:=4, ridge:=0.0).GetModel();
-		rpt := GLMmod.ExtractReport(mdl);
 		coef_pval := GLMmod.ExtractBeta_pval(mdl);
 		devdet := GLMmod.Deviance_Detail(iris_classes, GLMmod.Predict(coef_pval, iris_indep, family), mdl, family);
 		modl_dev := GLMmod.Model_Deviance(devdet, coef_pval);
@@ -96,11 +97,11 @@ FamilyTest(Family.FamilyInterface family, DATASET(Test_Values) v_result) := FUNC
 																				'petal length', 'petal width');
 			SELF.equal := ABS(SELF.tst_value-SELF.std_value) <= max_diff;
 		END;
-		coef_check := JOIN(coef_pval, v_result, LEFT.wi=RIGHT.wi,
+		coef_check := JOIN(coef_pval, values, LEFT.wi=RIGHT.wi,
 											 check(LEFT,RIGHT, 1), LOOKUP);
-		se_check := JOIN(coef_pval, v_result, LEFT.wi=RIGHT.wi,
+		se_check := JOIN(coef_pval, values, LEFT.wi=RIGHT.wi,
 										 check(LEFT,RIGHT, 2), LOOKUP);
-		pval_check := JOIN(coef_pval, v_result, LEFT.wi=RIGHT.wi,
+		pval_check := JOIN(coef_pval, values, LEFT.wi=RIGHT.wi,
 											 check(LEFT, RIGHT, 3), LOOKUP);
 											 
 											 
@@ -112,15 +113,17 @@ FamilyTest(Family.FamilyInterface family, DATASET(Test_Values) v_result) := FUNC
 			SELF.equal := ABS(SELF.tst_value-SELF.std_value) <= max_diff;
 		END;
 
-		aic_check :=  JOIN(modl_dev, v_result, LEFT.wi=RIGHT.wi,
+		aic_check :=  JOIN(modl_dev, values, LEFT.wi=RIGHT.wi,
 											check_aic(LEFT, RIGHT), LOOKUP);
+											
+		// Concatenates the sets of data
 		all_checks := coef_check + se_check + pval_check + aic_check;
 		errors := all_checks(NOT equal);
 		
 		RETURN(errors);
 END;
 
-myMod := #IFDEFINED(root.tmod, 'Gaussian');
+myMod := #IFDEFINED(root.tmod, 'Quasibinomial');
 
 #IF(myMod = 'Binomial')
 	fam := Family.Binomial;
