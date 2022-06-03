@@ -51,7 +51,7 @@ END;
 
 IrisData enum_recs(Datasets.Iris rec, UNSIGNED c) := TRANSFORM
   SELF.id := c;
-  SELF.class := IF(rec.class=1, 1, 0);
+  SELF.class := IF(rec.class=1, 1, 2);
   SELF := rec;
 END;
 
@@ -61,6 +61,8 @@ Core.ToField(iris, iris_indep, id, , 1,
              'sepal_length,sepal_width,petal_length,petal_width');
 Core.ToField(iris, iris_dep, id, , 1, 'class');
 iris_classes := PROJECT(iris_dep, Types.NumericField);
+// OUTPUT(iris_indep);
+// OUTPUT(iris_dep, ALL);
 
 // Takes in a family interface and a set of values and returns any errors
 FamilyTest(Family.FamilyInterface family, DATASET(Test_Values) values) := FUNCTION
@@ -123,7 +125,7 @@ FamilyTest(Family.FamilyInterface family, DATASET(Test_Values) values) := FUNCTI
 		RETURN(errors);
 END;
 
-myMod := #IFDEFINED(root.tmod, 'Full');
+myMod := #IFDEFINED(root.tmod, 'Gamma');
 
 #IF(myMod = 'Binomial')
 	fam := Family.Binomial;
